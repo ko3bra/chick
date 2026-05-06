@@ -466,7 +466,7 @@ const App: React.FC = () => {
       {/* Checkered Divider */}
       <div className="h-4 bg-checkered-red border-y border-black/5 opacity-100"></div>
       <Footer config={config} lang={lang} onOpenAdmin={handleOpenAdmin} scrollToCategory={scrollToCategory} />
-      <WhatsAppFloat phone={config.header.phone} lang={lang} />
+      <WhatsAppFloat phone={config.header.whatsapp || config.header.phone} lang={lang} />
       <MobileBottomNav 
         onOpenCart={() => setIsCartOpen(true)} 
         cartCount={cartCount} 

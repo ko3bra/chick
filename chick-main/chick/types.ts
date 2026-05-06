@@ -128,6 +128,7 @@ export interface SiteConfig {
     logoRed: string;
     logoWhite: string;
     phone: string;
+    whatsapp?: string;
   };
   footer: {
     aboutEn: string;

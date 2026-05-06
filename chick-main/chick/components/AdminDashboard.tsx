@@ -4,7 +4,7 @@ import {
   X, Plus, Edit2, Trash2, Search, Layout, Database,
   Settings2, Truck, Map as MapIcon, AppWindow,
   Sparkles, Star, Flame, Image as ImageIcon, Save,
-  ChevronRight, ChevronUp, ChevronDown, Phone, Globe, Facebook, Instagram, Upload, FileImage,
+  ChevronRight, ChevronUp, ChevronDown, Phone, MessageSquare, Globe, Facebook, Instagram, Upload, FileImage,
   RotateCcw, Layers, Hash, Check, Trash, Info, Key, MapPin,
   Palette, Share2, BarChart3, ListOrdered, AlignLeft, Eye, Tag as TagIcon,
   ArrowRight, MousePointer2, Navigation, CheckCircle2, Bell, Loader2, Download, FileSpreadsheet
@@ -521,10 +521,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                         };
 
                         const fileName = filterType === 'day' 
-                          ? `Chicky_Report_${selectedDate}_${getDayName(selectedDate)}` 
+                          ? `HassanMohamed_Report_${selectedDate}_${getDayName(selectedDate)}` 
                           : filterType === 'month' 
-                          ? `Chicky_Report_${selectedMonth}` 
-                          : `Chicky_Report_${selectedYear}`;
+                          ? `HassanMohamed_Report_${selectedMonth}` 
+                          : `HassanMohamed_Report_${selectedYear}`;
 
                         const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
                         const link = document.createElement("a");
@@ -1119,6 +1119,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           <div className="relative"><Facebook className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.facebook} placeholder="Facebook Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, facebook: e.target.value } })} /></div>
                           <div className="relative"><Instagram className="absolute left-5 top-1/2 -translate-y-1/2 text-pink-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.instagram} placeholder="Instagram Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, instagram: e.target.value } })} /></div>
                           <div className="relative"><TikTokIcon size={24} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-900" /><input className={inputStyle + " pl-16"} value={config.footer.tiktok} placeholder="TikTok Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, tiktok: e.target.value } })} /></div>
+                          
+                          <div className="relative">
+                            <Phone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                            <input 
+                              className={inputStyle + " pl-16"} 
+                              value={config.header.phone} 
+                              placeholder="Hotline Number" 
+                              onChange={e => syncConfig({ ...config, header: { ...config.header, phone: e.target.value } })} 
+                            />
+                          </div>
+                          <div className="relative">
+                            <MessageSquare className="absolute left-5 top-1/2 -translate-y-1/2 text-green-500" size={24} />
+                            <input 
+                              className={inputStyle + " pl-16"} 
+                              value={config.header.whatsapp || ''} 
+                              placeholder="WhatsApp Number" 
+                              onChange={e => syncConfig({ ...config, header: { ...config.header, whatsapp: e.target.value } })} 
+                            />
+                          </div>
+                          
                           <div className="relative md:col-span-3">
                             <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-red-600" size={24} />
                             <input 

@@ -362,7 +362,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const sendOrderToRestaurant = (customId?: string) => {
     const currentOrderId = customId || orderId;
-    const targetNumber = formatWhatsAppNumber(config.header.phone);
+    const targetNumber = formatWhatsAppNumber(config.header.whatsapp || config.header.phone);
     let msg = `*NEW ORDER FROM CHICKY WEB*\n`;
     msg += `--------------------------\n`;
     msg += `*Order ID:* ${currentOrderId}\n`;
@@ -402,7 +402,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const trackOrderOnWhatsApp = () => {
-    const targetNumber = formatWhatsAppNumber(config.header.phone);
+    const targetNumber = formatWhatsAppNumber(config.header.whatsapp || config.header.phone);
     const msg = isAr 
       ? `أهلاً تشيكي! أريد تتبع طلبي رقم: ${orderId}`
       : `Hi Chicky! I want to track my order: ${orderId}`;

@@ -108,7 +108,7 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
     header: {
         logoRed: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-red.png',
         logoWhite: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-white.png',
-        phone: '01220062060'
+        phone: '01062222850'
     },
     footer: {
         aboutEn: 'The best fried chicken in Egypt.',

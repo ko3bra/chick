@@ -127,7 +127,8 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
   header: {
     logoRed: '/logo-red.png',
     logoWhite: '/logo-red.png', // Fallback to red for now as white was canceled
-    phone: '0502222850'
+    phone: '0502222850',
+    whatsapp: '01062222850'
   },
   footer: {
     aboutEn: 'CRUNCH MELT HEART',
@@ -139,7 +140,7 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
     addressEn: 'Gihan St. x Teraa St., El Mansoura',
     addressAr: 'امام الدفاع المدنى داخل مول الجامعة بلازا، تقاطع شارع جيهان مع، شارع الترعة، محافظة الدقهلية',
     copyrightEn: '© 2024 CHICK',
-    copyrightAr: '© ٢٠٢٤ تشيكي'
+    copyrightAr: '© ٢٠٢٤ حسن محمد'
   },
   layout: [
     { id: 'deals', nameEn: 'Deals', nameAr: 'العروض' },
