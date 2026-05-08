@@ -33,7 +33,7 @@ const App: React.FC = () => {
   const [scheduledTime, setScheduledTime] = useState<string | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<string>('cat_deals');
-  const [lang, setLang] = useState<Language>('ar'); 
+  const [lang, setLang] = useState<Language>('ar');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -45,7 +45,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const timeout = new Promise((_, reject) => 
+      const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Fetch timeout')), 10000)
       );
 
@@ -136,7 +136,7 @@ const App: React.FC = () => {
     if (config) {
       const primaryColor = config.theme.primaryColor;
       document.documentElement.style.setProperty('--brand-red', primaryColor);
-      
+
       // Dynamic color variations
       const hexToRgb = (hex: string) => {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -146,25 +146,25 @@ const App: React.FC = () => {
           b: parseInt(result[3], 16)
         } : { r: 228, g: 0, b: 43 };
       };
-      
+
       const rgb = hexToRgb(primaryColor);
       document.documentElement.style.setProperty('--brand-red-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
       document.documentElement.style.setProperty('--shadow-red', `0 20px 40px -10px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`);
-      
+
       // Simple variations for light/dark
       document.documentElement.style.setProperty('--brand-red-light', primaryColor + 'cc'); // 80% opacity fallback or just use primary
       document.documentElement.style.setProperty('--brand-red-dark', primaryColor); // Harder to calculate purely in CSS without libraries, but primary works as base
-      
+
       document.documentElement.dir = isAr ? 'rtl' : 'ltr';
-      
+
       const link: any = document.querySelector("link[rel*='icon']") || document.createElement('link');
       link.type = 'image/png';
       link.rel = 'shortcut icon';
       link.href = config.header.logoRed;
       if (!document.querySelector("link[rel*='icon']")) {
-         document.getElementsByTagName('head')[0].appendChild(link);
+        document.getElementsByTagName('head')[0].appendChild(link);
       }
-      
+
       document.title = isAr ? (config.metaTitleAr || config.brandNameAr) : (config.metaTitleEn || config.brandNameEn);
     }
   }, [config, isAr]);
@@ -185,16 +185,16 @@ const App: React.FC = () => {
     let result = menu;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(item => 
-        item.name.toLowerCase().includes(q) || 
+      result = result.filter(item =>
+        item.name.toLowerCase().includes(q) ||
         item.nameAr.includes(q) ||
         item.tags?.some(tag => tag.toLowerCase().includes(q))
       );
     }
     if (activeTag) {
       const targetTag = activeTag.toLowerCase();
-      result = result.filter(item => 
-        item.tags?.some(t => t.toLowerCase() === targetTag) || 
+      result = result.filter(item =>
+        item.tags?.some(t => t.toLowerCase() === targetTag) ||
         (targetTag === 'spicy' && item.isSpicy)
       );
     }
@@ -208,17 +208,17 @@ const App: React.FC = () => {
       if (bestSellers.length > 0) return bestSellers.slice(0, 6);
       return menu.filter(p => p.category === 'deals' || p.category === 'cat_deals').slice(0, 4);
     }
-    
+
     // Cross-sell logic
     const cartCategories = new Set(cart.map(item => item.category));
-    const hasMainMeal = cartCategories.has('sandwiches') || cartCategories.has('cat_sandwiches') || 
-                        cartCategories.has('family-meals') || cartCategories.has('cat_family') || 
-                        cartCategories.has('deals') || cartCategories.has('cat_deals');
-    
+    const hasMainMeal = cartCategories.has('sandwiches') || cartCategories.has('cat_sandwiches') ||
+      cartCategories.has('family-meals') || cartCategories.has('cat_family') ||
+      cartCategories.has('deals') || cartCategories.has('cat_deals');
+
     if (hasMainMeal && !cartCategories.has('sides') && !cartCategories.has('cat_sides')) {
       return menu.filter(p => p.category === 'sides' || p.category === 'cat_sides').slice(0, 4);
     }
-    
+
     return menu.filter(p => !cart.some(c => c.id === p.id)).slice(0, 4);
   }, [cart, menu]);
 
@@ -240,41 +240,41 @@ const App: React.FC = () => {
 
     setCart(prev => {
       // Find matching item by ID, Spiciness, Size ID, and Modifiers (simplified comparison)
-      const existing = prev.find(item => 
-        item.id === product.id && 
-        item.selectedSpiciness === spiciness && 
+      const existing = prev.find(item =>
+        item.id === product.id &&
+        item.selectedSpiciness === spiciness &&
         item.selectedSize?.id === size?.id &&
         JSON.stringify(item.selectedModifiers || []) === JSON.stringify(modifiers || [])
       );
 
       if (existing) {
-        return prev.map(item => 
-          (item.id === product.id && 
-           item.selectedSpiciness === spiciness && 
-           item.selectedSize?.id === size?.id &&
-           JSON.stringify(item.selectedModifiers || []) === JSON.stringify(modifiers || [])) 
-          ? { ...item, quantity: item.quantity + 1 } 
-          : item
+        return prev.map(item =>
+          (item.id === product.id &&
+            item.selectedSpiciness === spiciness &&
+            item.selectedSize?.id === size?.id &&
+            JSON.stringify(item.selectedModifiers || []) === JSON.stringify(modifiers || []))
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
       }
-      return [...prev, { 
-        ...product, 
-        price: finalPrice, 
-        quantity: 1, 
-        selectedSpiciness: spiciness, 
-        selectedSize: size, 
-        selectedModifiers: modifiers 
+      return [...prev, {
+        ...product,
+        price: finalPrice,
+        quantity: 1,
+        selectedSpiciness: spiciness,
+        selectedSize: size,
+        selectedModifiers: modifiers
       }];
     });
   };
 
   const updateQuantity = (id: string, delta: number, spiciness?: 'Normal' | 'Spicy', price?: number, sizeId?: string, modifiersJson?: string) => {
     setCart(prev => prev.map(item => {
-      if (item.id === id && 
-          item.selectedSpiciness === spiciness && 
-          (price === undefined || item.price === price) &&
-          (sizeId === undefined || item.selectedSize?.id === sizeId) &&
-          (modifiersJson === undefined || JSON.stringify(item.selectedModifiers || []) === modifiersJson)) {
+      if (item.id === id &&
+        item.selectedSpiciness === spiciness &&
+        (price === undefined || item.price === price) &&
+        (sizeId === undefined || item.selectedSize?.id === sizeId) &&
+        (modifiersJson === undefined || JSON.stringify(item.selectedModifiers || []) === modifiersJson)) {
         const newQty = Math.max(1, item.quantity + delta);
         return { ...item, quantity: newQty };
       }
@@ -338,10 +338,10 @@ const App: React.FC = () => {
             <Logo src={config?.header?.logoRed || '/logo-red.png'} className="h-16 w-auto" />
           </div>
           <div className="flex flex-col items-center">
-             <h2 className="text-2xl font-black brand-font text-slate-900 uppercase tracking-tighter">
-               {config?.brandNameEn || import.meta.env.VITE_BRAND_NAME || 'CHICK'}
-             </h2>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">Syncing Cloud Database...</p>
+            <h2 className="text-2xl font-black brand-font text-slate-900 uppercase tracking-tighter">
+              {config?.brandNameEn || import.meta.env.VITE_BRAND_NAME || 'CHICK'}
+            </h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">Syncing Cloud Database...</p>
           </div>
         </div>
       </div>
@@ -351,7 +351,7 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen bg-mesh ${isAr ? 'font-arabic' : ''}`} dir={isAr ? 'rtl' : 'ltr'}>
       <Navbar lang={lang} onSetLang={setLang} onOpenCart={() => setIsCartOpen(true)} cartCount={cartCount} onSearchChange={setSearchQuery} logoSrc={config.header.logoRed} tags={config.tags} activeTag={activeTag} onTagToggle={handleTagToggle} filterLabelEn={config.filterLabelEn} filterLabelAr={config.filterLabelAr} />
-      
+
       {!activeTag && !searchQuery && (
         <HeroCarousel banners={config.hero.banners} isAr={isAr} onCategoryClick={scrollToCategory} />
       )}
@@ -373,30 +373,30 @@ const App: React.FC = () => {
       )}
 
       <main className="max-w-7xl mx-auto px-6 md:px-12 py-16 mb-24 md:mb-0">
-        
+
         {/* ACTIVE FILTER HEADER */}
         {(activeTag || searchQuery) && (
           <div className="mb-12 animate-reveal flex flex-col items-center text-center">
             <div className="bg-red-50 p-6 rounded-[3rem] border-2 border-red-100 mb-6 flex items-center gap-6 shadow-xl shadow-red-100/50">
-               <div className="w-16 h-16 bg-red-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl">
-                  {activeTag ? <TagIcon size={32} /> : <Zap size={32} />}
-               </div>
-               <div className={isAr ? 'text-right' : 'text-left'}>
-                  <div className="flex justify-center gap-2 mb-4 opacity-90">
-                     <Star size={16} className="text-red-600 fill-red-600" />
-                     <Star size={16} className="text-red-600 fill-red-600" />
-                     <Star size={16} className="text-red-600 fill-red-600" />
-                  </div>
-                  <h2 className="text-3xl font-black brand-font text-slate-900 uppercase leading-none mb-2">
-                    {isAr ? 'نتائج التصفية' : 'FILTERED RESULTS'}
-                  </h2>
-                  <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.4em]">
-                    {activeTag ? (isAr ? `وسم: ${config.tags.find(t => t.nameEn === activeTag)?.nameAr || activeTag}` : `TAG: ${activeTag}`) : (isAr ? `بحث عن: ${searchQuery}` : `SEARCHING: ${searchQuery}`)}
-                  </p>
-               </div>
-               <button onClick={() => { setActiveTag(null); setSearchQuery(''); }} className="ml-4 p-4 bg-white text-slate-300 hover:text-red-600 rounded-full shadow-sm hover:shadow-md transition-all">
-                 <X size={20} />
-               </button>
+              <div className="w-16 h-16 bg-red-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl">
+                {activeTag ? <TagIcon size={32} /> : <Zap size={32} />}
+              </div>
+              <div className={isAr ? 'text-right' : 'text-left'}>
+                <div className="flex justify-center gap-2 mb-4 opacity-90">
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                </div>
+                <h2 className="text-3xl font-black brand-font text-slate-900 uppercase leading-none mb-2">
+                  {isAr ? 'نتائج التصفية' : 'FILTERED RESULTS'}
+                </h2>
+                <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.4em]">
+                  {activeTag ? (isAr ? `وسم: ${config.tags.find(t => t.nameEn === activeTag)?.nameAr || activeTag}` : `TAG: ${activeTag}`) : (isAr ? `بحث عن: ${searchQuery}` : `SEARCHING: ${searchQuery}`)}
+                </p>
+              </div>
+              <button onClick={() => { setActiveTag(null); setSearchQuery(''); }} className="ml-4 p-4 bg-white text-slate-300 hover:text-red-600 rounded-full shadow-sm hover:shadow-md transition-all">
+                <X size={20} />
+              </button>
             </div>
             <div className="w-16 h-1 bg-red-600 rounded-full opacity-20" />
           </div>
@@ -406,11 +406,11 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto px-6 md:px-12 mb-16 text-center">
             {/* Stars Decoration */}
             <div className="flex justify-center gap-2 mb-4 opacity-90">
-               <Star size={16} className="text-red-600 fill-red-600" />
-               <Star size={16} className="text-red-600 fill-red-600" />
-               <Star size={16} className="text-red-600 fill-red-600" />
+              <Star size={16} className="text-red-600 fill-red-600" />
+              <Star size={16} className="text-red-600 fill-red-600" />
+              <Star size={16} className="text-red-600 fill-red-600" />
             </div>
-            
+
             <h2 className="text-4xl md:text-6xl font-black brand-font text-slate-900 uppercase tracking-tighter mb-4 text-balance">
               {isAr ? 'قائمة الطعام' : 'Our Menu'}
             </h2>
@@ -421,7 +421,7 @@ const App: React.FC = () => {
         {!activeTag && !searchQuery && (
           <RecommendedSection title={recommendationTitle} items={recommendations} onAddToCart={addToCart} lang={lang} />
         )}
-        
+
         {config.layout.length > 0 && (
           <div className="sticky top-[73px] md:top-[88px] z-40 bg-white/90 glass -mx-6 px-6 py-5 md:-mx-12 md:px-12 border-b border-gray-100 mb-12 overflow-x-auto no-scrollbar shadow-sm">
             <div className="flex gap-4 min-w-max items-center">
@@ -429,14 +429,13 @@ const App: React.FC = () => {
                 const hasItems = filteredMenu.some(p => p.category === cat.id);
                 if (!hasItems) return null;
                 return (
-                  <button 
-                    key={cat.id} 
-                    onClick={() => scrollToCategory(cat.id)} 
-                    className={`px-7 py-3 rounded-[1.25rem] text-[11px] md:text-xs font-black uppercase tracking-wider transition-all border-2 ${
-                      activeCategory === cat.id 
-                        ? 'bg-red-600 border-red-600 text-white shadow-xl scale-105' 
-                        : 'bg-white border-gray-100 text-slate-500 hover:text-red-600 hover:border-red-100'
-                    }`}
+                  <button
+                    key={cat.id}
+                    onClick={() => scrollToCategory(cat.id)}
+                    className={`px-7 py-3 rounded-[1.25rem] text-[11px] md:text-xs font-black uppercase tracking-wider transition-all border-2 ${activeCategory === cat.id
+                      ? 'bg-red-600 border-red-600 text-white shadow-xl scale-105'
+                      : 'bg-white border-gray-100 text-slate-500 hover:text-red-600 hover:border-red-100'
+                      }`}
                   >
                     {isAr ? cat.nameAr : cat.nameEn}
                   </button>
@@ -451,14 +450,14 @@ const App: React.FC = () => {
           if (catItems.length === 0) return null;
           return <MenuSection key={cat.id} category={cat} items={catItems} onAddToCart={addToCart} lang={lang} tagsConfig={config.tags} />;
         })}
-        
+
         {filteredMenu.length === 0 && (
           <div className="py-20 text-center animate-reveal">
-             <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-center mx-auto mb-8 text-slate-300">
-                <Search size={64} />
-             </div>
-             <h3 className="text-3xl font-black brand-font uppercase text-slate-900 mb-4">{isAr ? 'عذراً، لم نجد نتائج' : 'NO ITEMS FOUND'}</h3>
-             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">{isAr ? 'جرب البحث عن شيء آخر أو تغيير الفلتر' : 'Try searching for something else or clearing the filters'}</p>
+            <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-center mx-auto mb-8 text-slate-300">
+              <Search size={64} />
+            </div>
+            <h3 className="text-3xl font-black brand-font uppercase text-slate-900 mb-4">{isAr ? 'عذراً، لم نجد نتائج' : 'NO ITEMS FOUND'}</h3>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">{isAr ? 'جرب البحث عن شيء آخر أو تغيير الفلتر' : 'Try searching for something else or clearing the filters'}</p>
           </div>
         )}
       </main>
@@ -467,11 +466,11 @@ const App: React.FC = () => {
       <div className="h-4 bg-checkered-red border-y border-black/5 opacity-100"></div>
       <Footer config={config} lang={lang} onOpenAdmin={handleOpenAdmin} scrollToCategory={scrollToCategory} />
       <WhatsAppFloat phone={config.header.whatsapp || config.header.phone} lang={lang} />
-      <MobileBottomNav 
-        onOpenCart={() => setIsCartOpen(true)} 
-        cartCount={cartCount} 
-        lang={lang} 
-        onHomeClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} 
+      <MobileBottomNav
+        onOpenCart={() => setIsCartOpen(true)}
+        cartCount={cartCount}
+        lang={lang}
+        onHomeClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         onSearchClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
         onMenuClick={() => scrollToCategory(config.layout[0]?.id)}
         categories={config.layout}
@@ -479,14 +478,14 @@ const App: React.FC = () => {
       />
 
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} items={cart} onUpdateQuantity={updateQuantity} onRemove={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} lang={lang} />
-      <CheckoutModal 
-        isOpen={isCheckoutOpen} 
-        onClose={() => setIsCheckoutOpen(false)} 
-        subtotal={cartSubtotal} 
-        onConfirm={handleConfirmOrder} 
-        cartItems={cart} 
-        onClearCart={() => setCart([])} 
-        lang={lang} 
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        subtotal={cartSubtotal}
+        onConfirm={handleConfirmOrder}
+        cartItems={cart}
+        onClearCart={() => setCart([])}
+        lang={lang}
         serviceType={serviceType || 'delivery'}
         config={config}
       />

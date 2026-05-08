@@ -326,6 +326,34 @@ footer {
   transform: scale(0.95);
 }
 
+.btn-add-to-cart {
+  background-color: white !important;
+  border: 2px solid var(--brand-red) !important;
+  color: var(--brand-red) !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+}
+
+.btn-add-to-cart:hover {
+  background-color: var(--brand-red) !important;
+  color: white !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 20px -10px rgba(var(--brand-red-rgb), 0.5) !important;
+}
+
+.btn-add-to-cart svg {
+  color: inherit !important;
+}
+
+.btn-add-to-cart span {
+  color: inherit !important;
+}
+
 /* Image Utilities */
 .img-contain {
   object-fit: contain;

@@ -226,18 +226,16 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
                 <div className="mt-4 md:mt-8 flex gap-1 md:gap-2">
                   <button 
                     onClick={() => handleAddClick(item)}
-                    className={`flex-1 flex items-center justify-center gap-2 md:gap-3 py-2.5 md:py-4 rounded-xl md:rounded-2xl transition-all font-black uppercase tracking-widest text-[9px] md:text-[10px] active:scale-95 shadow-sm ${
-                      isAnimating 
-                      ? 'bg-success border-success text-white shadow-lg' 
-                      : 'bg-slate-50 border-transparent text-slate-900 group-hover:bg-red-600 group-hover:text-white'
+                    className={`flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl shadow-sm btn-add-to-cart ${
+                      isAnimating ? 'bg-success border-success text-white shadow-lg' : ''
                     }`}
                   >
                     {isAnimating ? (
-                      <CheckCircle size={16} md:size={18} />
+                      <CheckCircle size={20} />
                     ) : (
                       <>
-                        <Plus size={16} md:size={18} strokeWidth={3} />
-                        <span>{lang === 'en' ? 'Add' : 'أضف'}</span>
+                        <Plus size={20} strokeWidth={4} />
+                        <span className="text-[11px] md:text-xs font-black">{lang === 'en' ? 'Add' : 'أضف'}</span>
                       </>
                     )}
                   </button>

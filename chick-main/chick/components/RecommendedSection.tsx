@@ -119,10 +119,10 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ title, items, o
             </div>
             <button
               onClick={() => handleAddClick(item)}
-              className="mt-3 w-full bg-gray-50 hover:bg-red-600 text-gray-700 hover:text-white font-black py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+              className="mt-3 w-full py-3 rounded-xl btn-add-to-cart"
             >
-              <Plus size={14} />
-              {lang === 'en' ? 'Quick Add' : 'أضف سريعاً'}
+              <Plus size={18} strokeWidth={4} />
+              <span className="text-[11px] font-black">{lang === 'en' ? 'Quick Add' : 'أضف سريعاً'}</span>
             </button>
           </div>
         ))}
