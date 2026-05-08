@@ -106,16 +106,16 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
         ]
     },
     header: {
-        logoRed: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-red.png',
-        logoWhite: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-white.png',
+        logoRed: 'https://raw.githubusercontent.com/ai-studio-assets/chick-logo/main/logo-red.png',
+        logoWhite: 'https://raw.githubusercontent.com/ai-studio-assets/chick-logo/main/logo-white.png',
         phone: '01062222850'
     },
     footer: {
         aboutEn: 'The best fried chicken in Egypt.',
         aboutAr: 'أقوى فرايد تشيكن في مصر.',
-        facebook: 'https://facebook.com/chicky',
-        instagram: 'https://instagram.com/chicky',
-        tiktok: 'https://tiktok.com/@chicky',
+        facebook: 'https://facebook.com/chick',
+        instagram: 'https://instagram.com/chick',
+        tiktok: 'https://tiktok.com/@chick',
         locationUrl: 'https://maps.app.goo.gl/R49XXYqwM6vzEf469',
         addressEn: 'Palm Beach, St 14 corner 29, El Agamy El Bahria, Egypt',
         addressAr: 'شاطئ النخيل شارع ١٤ مع ٢٩، العجمي البحرية، الإسكندرية',
@@ -143,19 +143,19 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
 };
 
 export const getStoredMenu = (): Product[] => {
-    const stored = localStorage.getItem('chicky_menu');
+    const stored = localStorage.getItem('chick_menu');
     const parsed = stored ? JSON.parse(stored) : null;
     return (parsed && Array.isArray(parsed) && parsed.length > 0) ? parsed : INITIAL_MENU_DATA;
 };
 
 export const getStoredConfig = (): SiteConfig => {
-    const stored = localStorage.getItem('chicky_config');
+    const stored = localStorage.getItem('chick_config');
     const parsed = stored ? JSON.parse(stored) : null;
     return (parsed && parsed.hero && parsed.hero.banners && parsed.hero.banners.length > 0) ? parsed : INITIAL_SITE_CONFIG;
 };
 
 export const saveMenuToStorage = async (menu: Product[]) => {
-    localStorage.setItem('chicky_menu', JSON.stringify(menu));
+    localStorage.setItem('chick_menu', JSON.stringify(menu));
     // In Supabase, we usually handle individual row updates in the Admin component,
     // but for compatibility with existing code that sends the whole array:
     // (Assuming a 'menu_items' table where each product is a row)
@@ -163,7 +163,7 @@ export const saveMenuToStorage = async (menu: Product[]) => {
 };
 
 export const saveConfigToStorage = async (config: SiteConfig) => {
-    localStorage.setItem('chicky_config', JSON.stringify(config));
+    localStorage.setItem('chick_config', JSON.stringify(config));
     // Similarly, site_builder updates will be handled in AdminDashboard.
 };
 
