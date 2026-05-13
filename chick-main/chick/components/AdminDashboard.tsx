@@ -70,18 +70,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
       setLoading(true);
       try {
         const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-        if (ordersData) setOrders(ordersData.map(o => ({
-          id: o.id,
-          customerName: o.customer_name,
-          phone: o.phone,
-          address: o.address,
-          area: o.area,
-          location: o.location,
-          items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
-          totalPrice: o.total_price,
-          status: o.status,
-          createdAt: o.created_at
-        })));
+        if (ordersData) setOrders(ordersData.map(o => {
+          const locationObj = typeof o.location === 'string' ? JSON.parse(o.location) : (o.location || {});
+          return {
+            id: o.id,
+            customerName: o.customer_name,
+            phone: o.phone,
+            address: o.address,
+            area: o.area,
+            location: locationObj,
+            items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+            totalPrice: o.total_price,
+            status: o.status,
+            createdAt: o.created_at,
+            serviceType: o.service_type || locationObj.service_type || 'delivery'
+          };
+        }));
 
         const { data: promoData } = await supabase.from('promo_codes').select('*');
         if (promoData) setPromoCodes(promoData);
@@ -104,23 +108,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
       .channel('admin_orders')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         console.log('New order received!', payload);
-        
+
         // Play notification sound
         audio.play().catch(e => console.log('Autoplay blocked or audio failed:', e));
-        
+
         // Update orders list
         const newOrder = payload.new;
+        const locationObj = typeof newOrder.location === 'string' ? JSON.parse(newOrder.location) : (newOrder.location || {});
         setOrders(prev => [{
           id: newOrder.id,
           customerName: newOrder.customer_name,
           phone: newOrder.phone,
           address: newOrder.address,
           area: newOrder.area,
-          location: newOrder.location,
+          location: locationObj,
           items: typeof newOrder.items === 'string' ? JSON.parse(newOrder.items) : (newOrder.items || []),
           totalPrice: newOrder.total_price,
           status: newOrder.status,
-          createdAt: newOrder.created_at
+          createdAt: newOrder.created_at,
+          serviceType: newOrder.service_type || locationObj.service_type || 'delivery'
         }, ...prev]);
       })
       .subscribe();
@@ -133,16 +139,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   const stats = React.useMemo(() => {
     const filteredOrders = orders.filter(o => {
       if (!o.createdAt) return false;
-      const matchesDate = filterType === 'day' ? o.createdAt.startsWith(selectedDate) : 
-                         filterType === 'month' ? o.createdAt.startsWith(selectedMonth) :
-                         o.createdAt.startsWith(selectedYear);
+      const matchesDate = filterType === 'day' ? o.createdAt.startsWith(selectedDate) :
+        filterType === 'month' ? o.createdAt.startsWith(selectedMonth) :
+          o.createdAt.startsWith(selectedYear);
       const isNotCancelled = o.status !== 'cancelled';
       return matchesDate && isNotCancelled;
     });
-    
+
     const totalOrders = filteredOrders.length;
     const totalRevenue = filteredOrders.reduce((acc, o) => acc + o.totalPrice, 0);
-    
+
     const areaStats: Record<string, { count: number; revenue: number }> = {};
     const itemStats: Record<string, number> = {};
 
@@ -347,7 +353,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   // Debounced Sync to Supabase
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const timer = setTimeout(async () => {
       try {
         await supabase.from('site_settings').upsert({
@@ -399,7 +405,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     const newLayout = [...config.layout];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newLayout.length) return;
-    
+
     [newLayout[index], newLayout[targetIndex]] = [newLayout[targetIndex], newLayout[index]];
     syncConfig({ ...config, layout: newLayout });
   };
@@ -446,1132 +452,1140 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
 
   return (
     <>
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-6 dashboard-main-container">
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm no-print" onClick={onClose} />
-      <div className="relative bg-slate-50 w-full h-full md:h-[95vh] md:rounded-[4rem] shadow-2xl flex flex-col overflow-hidden border-[12px] border-white no-print">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-6 dashboard-main-container">
+        <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm no-print" onClick={onClose} />
+        <div className="relative bg-slate-50 w-full h-full md:h-[95vh] md:rounded-[4rem] shadow-2xl flex flex-col overflow-hidden border-[12px] border-white no-print">
 
-        <div className="w-full bg-slate-50 border-b-2 border-slate-100 flex items-center justify-between px-10 py-6 shrink-0">
-          <div className="flex items-center gap-6">
-            <div className="bg-red-600 p-3 rounded-2xl shadow-xl shadow-red-100 text-white">
-              <Database size={24} />
+          <div className="w-full bg-slate-50 border-b-2 border-slate-100 flex items-center justify-between px-10 py-6 shrink-0">
+            <div className="flex items-center gap-6">
+              <div className="bg-red-600 p-3 rounded-2xl shadow-xl shadow-red-100 text-white">
+                <Database size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black brand-font text-red-600 tracking-tighter uppercase leading-none">DASHBOARD</h2>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mt-1">ADMIN V10.2 • TOP-BAR NAV</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-black brand-font text-red-600 tracking-tighter uppercase leading-none">DASHBOARD</h2>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mt-1">ADMIN V10.2 • TOP-BAR NAV</p>
+            <div className="flex items-center gap-2 bg-slate-200/50 p-1.5 rounded-[2rem]">
+              <button onClick={() => setActiveTab('orders')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'orders' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ListOrdered size={16} /> ORDERS</button>
+              <button onClick={() => setActiveTab('marketing')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'marketing' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><TagIcon size={16} /> MARKETING</button>
+              <button onClick={() => setActiveTab('areas')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'areas' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Truck size={16} /> LOGISTICS</button>
+              <button onClick={() => setActiveTab('builder')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'builder' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Settings2 size={16} /> BUILDER</button>
+              <button onClick={() => setActiveTab('menu')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'menu' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Database size={16} /> MENU</button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button onClick={onClose} className="flex items-center gap-3 px-6 py-4 bg-red-50 text-red-600 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm group">
+                <RotateCcw size={16} className="group-hover:-rotate-90 transition-transform" /> Back to App
+              </button>
+              <button onClick={onClose} className="p-4 bg-slate-200 hover:bg-red-600 hover:text-white rounded-full transition-all text-slate-500">
+                <X size={20} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-200/50 p-1.5 rounded-[2rem]">
-            <button onClick={() => setActiveTab('orders')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'orders' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ListOrdered size={16} /> ORDERS</button>
-            <button onClick={() => setActiveTab('marketing')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'marketing' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><TagIcon size={16} /> MARKETING</button>
-            <button onClick={() => setActiveTab('areas')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'areas' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Truck size={16} /> LOGISTICS</button>
-            <button onClick={() => setActiveTab('builder')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'builder' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Settings2 size={16} /> BUILDER</button>
-            <button onClick={() => setActiveTab('menu')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'menu' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Database size={16} /> MENU</button>
-          </div>
 
-          <div className="flex items-center gap-4">
-            <button onClick={onClose} className="flex items-center gap-3 px-6 py-4 bg-red-50 text-red-600 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm group">
-              <RotateCcw size={16} className="group-hover:-rotate-90 transition-transform" /> Back to App
-            </button>
-            <button onClick={onClose} className="p-4 bg-slate-200 hover:bg-red-600 hover:text-white rounded-full transition-all text-slate-500">
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-hidden flex flex-col bg-white">
-          <div className="flex-1 overflow-y-auto no-scrollbar p-12 bg-slate-50/50">
+          <div className="flex-1 overflow-hidden flex flex-col bg-white">
+            <div className="flex-1 overflow-y-auto no-scrollbar p-12 bg-slate-50/50">
 
 
-            {activeTab === 'orders' && (
-              <div className="space-y-10 animate-reveal pb-20">
-                <div className="flex items-center justify-between bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                  <div>
-                    <h3 className="text-3xl font-black brand-font uppercase text-slate-900">Order Analytics</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Viewing {filterType === 'day' ? 'Daily' : 'Monthly'} statistics</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex bg-slate-100 p-1.5 rounded-xl">
-                      <button onClick={() => setFilterType('day')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'day' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>DAILY</button>
-                      <button onClick={() => setFilterType('month')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'month' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>MONTHLY</button>
-                      <button onClick={() => setFilterType('year')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'year' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>YEARLY</button>
+              {activeTab === 'orders' && (
+                <div className="space-y-10 animate-reveal pb-20">
+                  <div className="flex items-center justify-between bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                    <div>
+                      <h3 className="text-3xl font-black brand-font uppercase text-slate-900">Order Analytics</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Viewing {filterType === 'day' ? 'Daily' : 'Monthly'} statistics</p>
                     </div>
-                    {filterType === 'month' ? (
-                      <input 
-                        type="month" 
-                        value={selectedMonth} 
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
-                      />
-                    ) : filterType === 'day' ? (
-                      <input 
-                        type="date" 
-                        value={selectedDate} 
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
-                      />
-                    ) : (
-                      <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(e.target.value)}
-                        className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
+                    <div className="flex items-center gap-4">
+                      <div className="flex bg-slate-100 p-1.5 rounded-xl">
+                        <button onClick={() => setFilterType('day')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'day' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>DAILY</button>
+                        <button onClick={() => setFilterType('month')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'month' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>MONTHLY</button>
+                        <button onClick={() => setFilterType('year')} className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${filterType === 'year' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>YEARLY</button>
+                      </div>
+                      {filterType === 'month' ? (
+                        <input
+                          type="month"
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
+                        />
+                      ) : filterType === 'day' ? (
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
+                        />
+                      ) : (
+                        <select
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(e.target.value)}
+                          className="bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2 font-black text-xs text-slate-900 focus:border-red-600 outline-none transition-all"
+                        >
+                          {Array.from({ length: new Date().getFullYear() - 2024 + 1 }, (_, i) => 2024 + i).map(y => (
+                            <option key={y} value={y.toString()}>{y}</option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        onClick={() => {
+                          const filtered = orders.filter(o => {
+                            if (!o.createdAt) return false;
+                            if (filterType === 'day') return o.createdAt.startsWith(selectedDate);
+                            if (filterType === 'month') return o.createdAt.startsWith(selectedMonth);
+                            return o.createdAt.startsWith(selectedYear);
+                          }).filter(o => o.status !== 'cancelled');
+
+                          const headers = ["Order ID", "Date", "Customer", "Phone", "Area", "Total Price", "Status", "Items"];
+
+                          // Create CSV content with UTF-8 BOM for Arabic support
+                          const csvRows = [
+                            headers.join(','),
+                            ...filtered.map(o => {
+                              const statusLabel = o.status === 'pending' ? 'قيد التنفيذ' : o.status === 'completed' ? 'تم التوصيل' : 'ملغي';
+                              const itemsList = o.items.map(i => `${i.name} (x${i.quantity})`).join(' | ');
+
+                              // Escape commas and quotes for CSV
+                              return [
+                                `"${o.id.slice(-6)}"`,
+                                `"${new Date(o.createdAt).toLocaleString('ar-EG')}"`,
+                                `"${o.customerName.replace(/"/g, '""')}"`,
+                                `"${o.phone}"`,
+                                `"${(o.area || 'N/A').replace(/"/g, '""')}"`,
+                                o.totalPrice,
+                                `"${statusLabel}"`,
+                                `"${itemsList.replace(/"/g, '""')}"`
+                              ].join(',');
+                            })
+                          ];
+
+                          const csvString = '\uFEFF' + csvRows.join('\n'); // Add BOM for Excel UTF-8 support
+
+                          const getDayName = (dateStr: string) => {
+                            return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(dateStr));
+                          };
+
+                          const fileName = filterType === 'day'
+                            ? `HassanMohamed_Report_${selectedDate}_${getDayName(selectedDate)}`
+                            : filterType === 'month'
+                              ? `HassanMohamed_Report_${selectedMonth}`
+                              : `HassanMohamed_Report_${selectedYear}`;
+
+                          const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                          const link = document.createElement("a");
+                          link.href = URL.createObjectURL(blob);
+                          link.download = `${fileName}.csv`;
+                          link.click();
+                        }}
+                        className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-200 hover:scale-105 transition-all flex items-center gap-3"
                       >
-                        {Array.from({ length: new Date().getFullYear() - 2024 + 1 }, (_, i) => 2024 + i).map(y => (
-                          <option key={y} value={y.toString()}>{y}</option>
-                        ))}
-                      </select>
-                    )}
-                    <button 
-                      onClick={() => {
-                        const filtered = orders.filter(o => {
-                          if (!o.createdAt) return false;
-                          if (filterType === 'day') return o.createdAt.startsWith(selectedDate);
-                          if (filterType === 'month') return o.createdAt.startsWith(selectedMonth);
-                          return o.createdAt.startsWith(selectedYear);
-                        }).filter(o => o.status !== 'cancelled');
-
-                        const headers = ["Order ID", "Date", "Customer", "Phone", "Area", "Total Price", "Status", "Items"];
-                        
-                        // Create CSV content with UTF-8 BOM for Arabic support
-                        const csvRows = [
-                          headers.join(','),
-                          ...filtered.map(o => {
-                            const statusLabel = o.status === 'pending' ? 'قيد التنفيذ' : o.status === 'completed' ? 'تم التوصيل' : 'ملغي';
-                            const itemsList = o.items.map(i => `${i.name} (x${i.quantity})`).join(' | ');
-                            
-                            // Escape commas and quotes for CSV
-                            return [
-                              `"${o.id.slice(-6)}"`,
-                              `"${new Date(o.createdAt).toLocaleString('ar-EG')}"`,
-                              `"${o.customerName.replace(/"/g, '""')}"`,
-                              `"${o.phone}"`,
-                              `"${(o.area || 'N/A').replace(/"/g, '""')}"`,
-                              o.totalPrice,
-                              `"${statusLabel}"`,
-                              `"${itemsList.replace(/"/g, '""')}"`
-                            ].join(',');
-                          })
-                        ];
-
-                        const csvString = '\uFEFF' + csvRows.join('\n'); // Add BOM for Excel UTF-8 support
-
-                        const getDayName = (dateStr: string) => {
-                          return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(dateStr));
-                        };
-
-                        const fileName = filterType === 'day' 
-                          ? `HassanMohamed_Report_${selectedDate}_${getDayName(selectedDate)}` 
-                          : filterType === 'month' 
-                          ? `HassanMohamed_Report_${selectedMonth}` 
-                          : `HassanMohamed_Report_${selectedYear}`;
-
-                        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-                        const link = document.createElement("a");
-                        link.href = URL.createObjectURL(blob);
-                        link.download = `${fileName}.csv`;
-                        link.click();
-                      }}
-                      className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-200 hover:scale-105 transition-all flex items-center gap-3"
-                    >
-                      <FileSpreadsheet size={16} /> Export Report
-                    </button>
+                        <FileSpreadsheet size={16} /> Export Report
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Total Revenue</span>
                       <h4 className="text-3xl font-black text-slate-900 leading-none">{stats.totalRevenue} <span className="text-sm">LE</span></h4>
-                   </div>
-                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+                    </div>
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Total Orders</span>
                       <h4 className="text-3xl font-black text-slate-900 leading-none">{stats.totalOrders}</h4>
-                   </div>
-                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+                    </div>
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Top Area</span>
                       <h4 className="text-xl font-black text-red-600 leading-tight truncate">{stats.topArea ? stats.topArea[0] : 'N/A'}</h4>
                       <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{stats.topArea ? stats.topArea[1].count : 0} Orders</p>
-                   </div>
-                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+                    </div>
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Best Seller</span>
                       <h4 className="text-xl font-black text-slate-900 leading-tight truncate">{stats.topItem ? stats.topItem[0] : 'N/A'}</h4>
                       <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{stats.topItem ? stats.topItem[1] : 0} Sold</p>
-                   </div>
-                </div>
+                    </div>
+                  </div>
 
-                {/* Area Breakdown Table */}
-                <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                   <h4 className="text-xl font-black brand-font uppercase text-slate-900 mb-8 flex items-center gap-4">
-                     <MapIcon size={20} className="text-red-600" /> Orders per Area Breakdown
-                   </h4>
-                   <div className="space-y-4">
+                  {/* Area Breakdown Table */}
+                  <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                    <h4 className="text-xl font-black brand-font uppercase text-slate-900 mb-8 flex items-center gap-4">
+                      <MapIcon size={20} className="text-red-600" /> Orders per Area Breakdown
+                    </h4>
+                    <div className="space-y-4">
                       {Object.entries(stats.areaStats).map(([area, data]) => (
                         <div key={area} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all">
-                           <span className="font-black text-slate-900 text-sm uppercase">{area}</span>
-                           <div className="flex items-center gap-8">
-                              <div className="text-right">
-                                 <span className="text-[9px] font-black text-slate-400 uppercase block leading-none">Count</span>
-                                 <span className="text-sm font-black text-slate-900">{data.count}</span>
-                              </div>
-                              <div className="text-right min-w-[80px]">
-                                 <span className="text-[9px] font-black text-slate-400 uppercase block leading-none">Revenue</span>
-                                 <span className="text-sm font-black text-red-600">{data.revenue} LE</span>
-                              </div>
-                           </div>
+                          <span className="font-black text-slate-900 text-sm uppercase">{area}</span>
+                          <div className="flex items-center gap-8">
+                            <div className="text-right">
+                              <span className="text-[9px] font-black text-slate-400 uppercase block leading-none">Count</span>
+                              <span className="text-sm font-black text-slate-900">{data.count}</span>
+                            </div>
+                            <div className="text-right min-w-[80px]">
+                              <span className="text-[9px] font-black text-slate-400 uppercase block leading-none">Revenue</span>
+                              <span className="text-sm font-black text-red-600">{data.revenue} LE</span>
+                            </div>
+                          </div>
                         </div>
                       ))}
-                   </div>
-                </div>
-
-                <div className="pt-10 border-t border-slate-100">
-                   <h3 className="text-2xl font-black brand-font uppercase text-slate-900 mb-8">Recent Orders History</h3>
-                </div>
-
-                <div className="grid grid-cols-1 gap-6">
-                  {orders.length === 0 ? (
-                    <div className="bg-white p-20 rounded-[3.5rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 italic">
-                      No orders recorded yet.
                     </div>
-                  ) : (
-                    orders.map(order => (
-                      <div key={order.id} className="bg-white p-10 rounded-[4rem] border-2 border-slate-50 shadow-sm hover:border-red-600 transition-all flex flex-col gap-8">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
-                          <div className="flex items-center gap-6">
-                            <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center font-black brand-font text-lg shadow-xl shrink-0">
-                              {order.id.slice(-2)}
+                  </div>
+
+                  <div className="pt-10 border-t border-slate-100">
+                    <h3 className="text-2xl font-black brand-font uppercase text-slate-900 mb-8">Recent Orders History</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6">
+                    {orders.length === 0 ? (
+                      <div className="bg-white p-20 rounded-[3.5rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 italic">
+                        No orders recorded yet.
+                      </div>
+                    ) : (
+                      orders.map(order => (
+                        <div key={order.id} className="bg-white p-10 rounded-[4rem] border-2 border-slate-50 shadow-sm hover:border-red-600 transition-all flex flex-col gap-8">
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
+                            <div className="flex items-center gap-6">
+                              <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center font-black brand-font text-xs shadow-xl shrink-0 text-center leading-tight">
+                                {order.serviceType === 'delivery' ? <Truck size={24} /> : order.serviceType === 'pickup' ? <ShoppingBag size={24} /> : <Utensils size={24} />}
+                              </div>
+                              <div>
+                                <h4 className="font-black text-2xl text-slate-900 tracking-tight leading-none mb-2 capitalize">{order.customerName}</h4>
+                                <div className="flex items-center gap-4">
+                                  <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-3 py-1 rounded-full">{order.id}</span>
+                                  <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${order.serviceType === 'delivery' ? 'bg-blue-50 text-blue-600' :
+                                    order.serviceType === 'pickup' ? 'bg-purple-50 text-purple-600' :
+                                      'bg-pink-50 text-pink-600'
+                                    }`}>
+                                    {order.serviceType === 'delivery' ? 'DELIVERY' : order.serviceType === 'pickup' ? 'PICKUP' : 'DINE-IN'}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleString()}</span>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="font-black text-2xl text-slate-900 tracking-tight leading-none mb-2 capitalize">{order.customerName}</h4>
-                              <div className="flex items-center gap-4">
-                                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-3 py-1 rounded-full">{order.id}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleString()}</span>
+                            <div className="flex gap-4 items-center">
+                              <div className="text-right">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Price</span>
+                                <span className="text-2xl font-black text-slate-900">{order.totalPrice} LE</span>
+                              </div>
+                              <div className={`p-4 rounded-2xl flex items-center gap-3 border-2 ${order.status === 'pending' ? 'bg-orange-50 border-orange-100 text-orange-600' :
+                                order.status === 'completed' ? 'bg-green-50 border-green-100 text-green-600' :
+                                  'bg-slate-50 border-slate-100 text-slate-400'
+                                }`}>
+                                <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${order.status === 'pending' ? 'bg-orange-600' : order.status === 'completed' ? 'bg-green-600' : 'bg-slate-400'
+                                  }`} />
+                                <span className="text-[10px] font-black uppercase tracking-widest font-arabic">{order.status === 'pending' ? 'قيد التنفيذ' : order.status === 'completed' ? 'تم التوصيل' : 'ملغي'}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-4 items-center">
-                            <div className="text-right">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Price</span>
-                              <span className="text-2xl font-black text-slate-900">{order.totalPrice} LE</span>
-                            </div>
-                            <div className={`p-4 rounded-2xl flex items-center gap-3 border-2 ${order.status === 'pending' ? 'bg-orange-50 border-orange-100 text-orange-600' :
-                              order.status === 'completed' ? 'bg-green-50 border-green-100 text-green-600' :
-                                'bg-slate-50 border-slate-100 text-slate-400'
-                              }`}>
-                              <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${order.status === 'pending' ? 'bg-orange-600' : order.status === 'completed' ? 'bg-green-600' : 'bg-slate-400'
-                                }`} />
-                              <span className="text-[10px] font-black uppercase tracking-widest font-arabic">{order.status === 'pending' ? 'قيد التنفيذ' : order.status === 'completed' ? 'تم التوصيل' : 'ملغي'}</span>
-                            </div>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                          <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-6">
+                              <div className="space-y-4">
+                                <h5 className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-3">
+                                  {order.serviceType === 'delivery' ? <Truck size={14} className="text-red-600" /> : <ShoppingBag size={14} className="text-red-600" />}
+                                  {order.serviceType === 'delivery' ? 'Delivery Details' : 'Pickup/Branch Details'}
+                                </h5>
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-4 text-slate-900 font-bold">
+                                    <Phone size={16} className="text-slate-300" /> {order.phone}
+                                  </div>
+                                  <div className="flex items-start gap-4 text-slate-500 font-medium text-sm leading-relaxed">
+                                    <MapPin size={16} className="text-slate-300 mt-1 shrink-0" /> {order.address} ({order.area})
+                                  </div>
+                                  {order.location && typeof order.location === 'object' && 'lat' in order.location && (
+                                    <a
+                                      href={`https://www.google.com/maps?q=${order.location.lat},${order.location.lng}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-3 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline pt-2"
+                                    >
+                                      <Navigation size={14} fill="currentColor" /> View Exact Pin on Maps
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             <div className="space-y-4">
                               <h5 className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-3">
-                                <Truck size={14} className="text-red-600" /> Delivery Details
+                                <Layout size={14} className="text-red-600" /> Order Summary
                               </h5>
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-4 text-slate-900 font-bold">
-                                  <Phone size={16} className="text-slate-300" /> {order.phone}
-                                </div>
-                                <div className="flex items-start gap-4 text-slate-500 font-medium text-sm leading-relaxed">
-                                  <MapPin size={16} className="text-slate-300 mt-1 shrink-0" /> {order.address} ({order.area})
-                                </div>
-                                {order.location && typeof order.location === 'object' && 'lat' in order.location && (
-                                  <a
-                                    href={`https://www.google.com/maps?q=${order.location.lat},${order.location.lng}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-3 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline pt-2"
-                                  >
-                                    <Navigation size={14} fill="currentColor" /> View Exact Pin on Maps
-                                  </a>
-                                )}
+                              <div className="bg-slate-50 rounded-3xl p-6 space-y-4">
+                                {order.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-3">
+                                      <span className="w-7 h-7 bg-white rounded-lg flex items-center justify-center font-black text-[10px] border border-slate-100">{item.quantity}x</span>
+                                      <span className="font-bold text-slate-900">{item.name}</span>
+                                      {item.selectedSpiciness && (
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase border ${item.selectedSpiciness === 'Spicy' ? 'border-red-200 text-red-600 bg-red-50' : 'border-slate-200 text-slate-400 bg-white'}`}>
+                                          {item.selectedSpiciness}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="font-black text-slate-400">{item.price * item.quantity} LE</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           </div>
 
-                          <div className="space-y-4">
-                            <h5 className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-3">
-                              <Layout size={14} className="text-red-600" /> Order Summary
-                            </h5>
-                            <div className="bg-slate-50 rounded-3xl p-6 space-y-4">
-                              {order.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm">
-                                  <div className="flex items-center gap-3">
-                                    <span className="w-7 h-7 bg-white rounded-lg flex items-center justify-center font-black text-[10px] border border-slate-100">{item.quantity}x</span>
-                                    <span className="font-bold text-slate-900">{item.name}</span>
-                                    {item.selectedSpiciness && (
-                                      <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase border ${item.selectedSpiciness === 'Spicy' ? 'border-red-200 text-red-600 bg-red-50' : 'border-slate-200 text-slate-400 bg-white'}`}>
-                                        {item.selectedSpiciness}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="font-black text-slate-400">{item.price * item.quantity} LE</span>
-                                </div>
+                          <div className="flex gap-4 pt-4 border-t border-slate-50">
+                            <button onClick={async () => {
+                              const { error } = await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
+                              if (!error) {
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' as const } : o));
+                              }
+                            }} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 shadow-lg">Mark as Completed</button>
+
+                            <button onClick={async () => {
+                              const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
+                              if (!error) {
+                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' as const } : o));
+                              }
+                            }} className="py-4 px-8 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 transition-all active:scale-95">Cancel</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              {activeTab === 'menu' && (
+                <div className="space-y-10 animate-reveal pb-20">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                    <div className="relative w-full md:w-[400px]">
+                      <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                      <input placeholder="Search menu..." className={inputStyle + " pl-16 bg-slate-50 border-none h-18 text-lg font-bold"} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    </div>
+                    <button onClick={() => { setEditingProduct({ name: '', nameAr: '', price: 0, originalPrice: 0, category: config.layout[0]?.id || '', image: '', tags: [], description: '', descriptionAr: '' }); setIsProductFormOpen(true); }}
+                      className="w-full md:w-auto bg-red-600 text-white font-black px-12 py-6 rounded-[2.5rem] flex items-center justify-center gap-4 uppercase text-sm tracking-widest shadow-2xl shadow-red-200 hover:scale-105 transition-all">
+                      <Plus size={24} strokeWidth={4} /> Add New Item
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {menu.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.nameAr.includes(searchTerm)).map(product => {
+                      const cat = config.layout.find(c => c.id === product.category);
+                      const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+                      return (
+                        <div key={product.id} className="bg-white p-8 rounded-[3.5rem] border-2 border-slate-50 flex flex-col sm:flex-row items-center gap-10 group hover:border-red-600 transition-all shadow-sm relative overflow-hidden">
+                          <div className="relative shrink-0">
+                            <img src={product.image} className="w-28 h-28 rounded-[2.5rem] object-contain p-2 ring-4 ring-slate-50" />
+                            {product.isSpicy && <div className="absolute -top-3 -left-3 bg-red-600 text-white p-2.5 rounded-2xl shadow-xl animate-pulse"><Flame size={18} fill="currentColor" /></div>}
+                          </div>
+                          <div className="flex-1 space-y-4 text-center sm:text-left">
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                              <h4 className="font-black text-slate-900 uppercase text-xl leading-none">{product.name}</h4>
+                              <span className="bg-red-50 text-red-600 text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.2em] border border-red-100">{cat?.nameEn}</span>
+                            </div>
+                            <div className="flex items-center justify-center sm:justify-start gap-6">
+                              <div className="flex flex-col">
+                                <span className="text-2xl font-black text-red-600">{product.price} LE</span>
+                                {hasDiscount && product.originalPrice && product.originalPrice > 0 ? (
+                                  <span className="text-[10px] font-black text-slate-300 line-through uppercase">بدلاً من {product.originalPrice} LE</span>
+                                ) : null}
+                              </div>
+                              <div className="h-8 w-px bg-slate-100 hidden sm:block" />
+                              <div className="text-right">
+                                <span className="text-lg font-black block leading-none font-arabic">{product.nameAr}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex sm:flex-col gap-3 shrink-0">
+                            <button onClick={() => { setEditingProduct(product); setIsProductFormOpen(true); }} className="p-4 bg-slate-50 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-[1.5rem] transition-all"><Edit2 size={20} /></button>
+                            <button onClick={async () => { if (confirm('Delete item?')) { try { const { error } = await supabase.from('menu_items').delete().eq('id', product.id); if (error) throw error; onUpdateMenu(menu.filter(p => p.id !== product.id)); } catch (err: any) { alert('Delete failed: ' + err.message); } } }} className="p-4 bg-slate-50 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-[1.5rem] transition-all"><Trash2 size={20} /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'marketing' && (
+                <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
+                  <div className="flex flex-col md:flex-row items-end gap-6">
+                    <div className="flex-1 space-y-4">
+                      <label className={labelStyle}>Campaign Details</label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input className={inputStyle} placeholder="CODE10" value={newPromo.code} onChange={e => setNewPromo({ ...newPromo, code: e.target.value.toUpperCase() })} />
+                        <select className={inputStyle} value={newPromo.discount_type} onChange={e => setNewPromo({ ...newPromo, discount_type: e.target.value })}>
+                          <option value="percentage">PERCENTAGE %</option>
+                          <option value="fixed">FIXED VALUE</option>
+                        </select>
+                        <input type="number" className={inputStyle} placeholder="Value" value={newPromo.discount_value} onChange={e => setNewPromo({ ...newPromo, discount_value: Number(e.target.value) })} />
+                      </div>
+                    </div>
+                    <div className="w-full md:w-48 space-y-4">
+                      <label className={labelStyle}>Min Order (LE)</label>
+                      <input type="number" className={inputStyle} value={newPromo.min_order_value} onChange={e => setNewPromo({ ...newPromo, min_order_value: Number(e.target.value) })} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 border-t pt-10">
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-1">1. Restrict to Categories</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select sections to apply discount</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {config.layout.map(cat => {
+                          const isSelected = newPromo.applicable_categories?.includes(cat.id);
+                          return (
+                            <button
+                              key={cat.id}
+                              onClick={() => {
+                                const next = isSelected
+                                  ? newPromo.applicable_categories.filter((id: string) => id !== cat.id)
+                                  : [...(newPromo.applicable_categories || []), cat.id];
+                                setNewPromo({ ...newPromo, applicable_categories: next });
+                              }}
+                              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border-2 ${isSelected ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-100'}`}
+                            >
+                              {cat.nameEn}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-1">2. Restrict to Specific Items</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select individual products</p>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto no-scrollbar grid grid-cols-1 gap-2 p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                        {menu.map(p => {
+                          const isSelected = newPromo.applicable_products?.includes(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                const next = isSelected
+                                  ? newPromo.applicable_products.filter((id: string) => id !== p.id)
+                                  : [...(newPromo.applicable_products || []), p.id];
+                                setNewPromo({ ...newPromo, applicable_products: next });
+                              }}
+                              className={`flex items-center gap-3 p-3 rounded-2xl transition-all border-2 ${isSelected ? 'bg-white border-red-600 shadow-sm' : 'bg-transparent border-transparent opacity-60 hover:opacity-100'}`}
+                            >
+                              <img src={p.image} className="w-8 h-8 rounded-lg object-contain" />
+                              <span className="text-[10px] font-black uppercase text-slate-900 truncate">{p.name}</span>
+                              {isSelected && <CheckCircle2 size={14} className="text-red-600 ml-auto" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      if (!newPromo.code) return;
+                      await supabase.from('promo_codes').upsert(newPromo);
+                      setNewPromo({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, applicable_categories: [], applicable_products: [] });
+                    }}
+                    className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-red-600 transition-all shadow-xl shadow-slate-200"
+                  >
+                    Deploy New Campaign
+                  </button>
+
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-10">
+                    {promoCodes.map(pc => (
+                      <div key={pc.code} className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-100 flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-10">
+                          <div className="p-4 bg-slate-50 rounded-2xl"><TagIcon size={24} className="text-red-600" /></div>
+                          <button
+                            onClick={async () => { if (confirm('Delete promo?')) await supabase.from('promo_codes').delete().eq('code', pc.code); }}
+                            className="p-3 text-slate-300 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 size={24} />
+                          </button>
+                        </div>
+                        <div>
+                          <h4 className="text-3xl font-black text-slate-950 tracking-tight uppercase leading-none">{pc.code}</h4>
+                          <div className="flex items-center gap-3 mt-4">
+                            <span className="bg-green-100 text-green-700 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
+                              {pc.discount_value}{pc.discount_type === 'percentage' ? '%' : ' LE'} OFF
+                            </span>
+                            {pc.min_order_value > 0 && (
+                              <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
+                                MIN {pc.min_order_value} LE
+                              </span>
+                            )}
+                          </div>
+                          {pc.applicable_categories && pc.applicable_categories.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {pc.applicable_categories.map((catId: string) => (
+                                <span key={catId} className="bg-red-50 text-red-600 text-[8px] font-black px-3 py-1 rounded-lg border border-red-100">
+                                  {config.layout.find(c => c.id === catId)?.nameEn || catId}
+                                </span>
                               ))}
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 pt-4 border-t border-slate-50">
-                          <button onClick={async () => {
-                            const { error } = await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
-                            if (!error) {
-                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' as const } : o));
-                            }
-                          }} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 shadow-lg">Mark as Completed</button>
-
-                          <button onClick={async () => {
-                            const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
-                            if (!error) {
-                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' as const } : o));
-                            }
-                          }} className="py-4 px-8 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 transition-all active:scale-95">Cancel</button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-            {activeTab === 'menu' && (
-              <div className="space-y-10 animate-reveal pb-20">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                  <div className="relative w-full md:w-[400px]">
-                    <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                    <input placeholder="Search menu..." className={inputStyle + " pl-16 bg-slate-50 border-none h-18 text-lg font-bold"} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                  </div>
-                  <button onClick={() => { setEditingProduct({ name: '', nameAr: '', price: 0, originalPrice: 0, category: config.layout[0]?.id || '', image: '', tags: [], description: '', descriptionAr: '' }); setIsProductFormOpen(true); }}
-                    className="w-full md:w-auto bg-red-600 text-white font-black px-12 py-6 rounded-[2.5rem] flex items-center justify-center gap-4 uppercase text-sm tracking-widest shadow-2xl shadow-red-200 hover:scale-105 transition-all">
-                    <Plus size={24} strokeWidth={4} /> Add New Item
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {menu.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.nameAr.includes(searchTerm)).map(product => {
-                    const cat = config.layout.find(c => c.id === product.category);
-                    const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-                    return (
-                      <div key={product.id} className="bg-white p-8 rounded-[3.5rem] border-2 border-slate-50 flex flex-col sm:flex-row items-center gap-10 group hover:border-red-600 transition-all shadow-sm relative overflow-hidden">
-                        <div className="relative shrink-0">
-                          <img src={product.image} className="w-28 h-28 rounded-[2.5rem] object-contain p-2 ring-4 ring-slate-50" />
-                          {product.isSpicy && <div className="absolute -top-3 -left-3 bg-red-600 text-white p-2.5 rounded-2xl shadow-xl animate-pulse"><Flame size={18} fill="currentColor" /></div>}
-                        </div>
-                        <div className="flex-1 space-y-4 text-center sm:text-left">
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                            <h4 className="font-black text-slate-900 uppercase text-xl leading-none">{product.name}</h4>
-                            <span className="bg-red-50 text-red-600 text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.2em] border border-red-100">{cat?.nameEn}</span>
-                          </div>
-                          <div className="flex items-center justify-center sm:justify-start gap-6">
-                            <div className="flex flex-col">
-                              <span className="text-2xl font-black text-red-600">{product.price} LE</span>
-                              {hasDiscount && product.originalPrice && product.originalPrice > 0 ? (
-                                <span className="text-[10px] font-black text-slate-300 line-through uppercase">بدلاً من {product.originalPrice} LE</span>
-                              ) : null}
+                          )}
+                          {pc.applicable_products && pc.applicable_products.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {pc.applicable_products.map((prodId: string) => (
+                                <span key={prodId} className="bg-slate-950 text-white text-[8px] font-black px-3 py-1 rounded-lg">
+                                  {menu.find(p => p.id === prodId)?.name || prodId}
+                                </span>
+                              ))}
                             </div>
-                            <div className="h-8 w-px bg-slate-100 hidden sm:block" />
-                            <div className="text-right">
-                              <span className="text-lg font-black block leading-none font-arabic">{product.nameAr}</span>
-                            </div>
-                          </div>
+                          )}
                         </div>
-                        <div className="flex sm:flex-col gap-3 shrink-0">
-                          <button onClick={() => { setEditingProduct(product); setIsProductFormOpen(true); }} className="p-4 bg-slate-50 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-[1.5rem] transition-all"><Edit2 size={20} /></button>
-                          <button onClick={async () => { if (confirm('Delete item?')) { try { const { error } = await supabase.from('menu_items').delete().eq('id', product.id); if (error) throw error; onUpdateMenu(menu.filter(p => p.id !== product.id)); } catch (err: any) { alert('Delete failed: ' + err.message); } } }} className="p-4 bg-slate-50 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-[1.5rem] transition-all"><Trash2 size={20} /></button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'marketing' && (
-              <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
-                <div className="flex flex-col md:flex-row items-end gap-6">
-                  <div className="flex-1 space-y-4">
-                    <label className={labelStyle}>Campaign Details</label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <input className={inputStyle} placeholder="CODE10" value={newPromo.code} onChange={e => setNewPromo({...newPromo, code: e.target.value.toUpperCase()})} />
-                      <select className={inputStyle} value={newPromo.discount_type} onChange={e => setNewPromo({...newPromo, discount_type: e.target.value})}>
-                        <option value="percentage">PERCENTAGE %</option>
-                        <option value="fixed">FIXED VALUE</option>
-                      </select>
-                      <input type="number" className={inputStyle} placeholder="Value" value={newPromo.discount_value} onChange={e => setNewPromo({...newPromo, discount_value: Number(e.target.value)})} />
-                    </div>
-                  </div>
-                  <div className="w-full md:w-48 space-y-4">
-                     <label className={labelStyle}>Min Order (LE)</label>
-                     <input type="number" className={inputStyle} value={newPromo.min_order_value} onChange={e => setNewPromo({...newPromo, min_order_value: Number(e.target.value)})} />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 border-t pt-10">
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-1">1. Restrict to Categories</h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select sections to apply discount</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {config.layout.map(cat => {
-                        const isSelected = newPromo.applicable_categories?.includes(cat.id);
-                        return (
-                          <button
-                            key={cat.id}
-                            onClick={() => {
-                              const next = isSelected 
-                                ? newPromo.applicable_categories.filter((id: string) => id !== cat.id)
-                                : [...(newPromo.applicable_categories || []), cat.id];
-                              setNewPromo({ ...newPromo, applicable_categories: next });
-                            }}
-                            className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border-2 ${isSelected ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-red-100'}`}
-                          >
-                            {cat.nameEn}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-1">2. Restrict to Specific Items</h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select individual products</p>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto no-scrollbar grid grid-cols-1 gap-2 p-4 bg-slate-50 rounded-3xl border border-slate-100">
-                      {menu.map(p => {
-                        const isSelected = newPromo.applicable_products?.includes(p.id);
-                        return (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              const next = isSelected 
-                                ? newPromo.applicable_products.filter((id: string) => id !== p.id)
-                                : [...(newPromo.applicable_products || []), p.id];
-                              setNewPromo({ ...newPromo, applicable_products: next });
-                            }}
-                            className={`flex items-center gap-3 p-3 rounded-2xl transition-all border-2 ${isSelected ? 'bg-white border-red-600 shadow-sm' : 'bg-transparent border-transparent opacity-60 hover:opacity-100'}`}
-                          >
-                            <img src={p.image} className="w-8 h-8 rounded-lg object-contain" />
-                            <span className="text-[10px] font-black uppercase text-slate-900 truncate">{p.name}</span>
-                            {isSelected && <CheckCircle2 size={14} className="text-red-600 ml-auto" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={async () => {
-                    if (!newPromo.code) return;
-                    await supabase.from('promo_codes').upsert(newPromo);
-                    setNewPromo({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, applicable_categories: [], applicable_products: [] });
-                  }}
-                  className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-red-600 transition-all shadow-xl shadow-slate-200"
-                >
-                  Deploy New Campaign
-                </button>
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-10">
-                  {promoCodes.map(pc => (
-                    <div key={pc.code} className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-100 flex flex-col justify-between">
-                      <div className="flex justify-between items-start mb-10">
-                        <div className="p-4 bg-slate-50 rounded-2xl"><TagIcon size={24} className="text-red-600" /></div>
-                        <button 
-                          onClick={async () => { if(confirm('Delete promo?')) await supabase.from('promo_codes').delete().eq('code', pc.code); }}
-                          className="p-3 text-slate-300 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={24} />
-                        </button>
-                      </div>
-                      <div>
-                        <h4 className="text-3xl font-black text-slate-950 tracking-tight uppercase leading-none">{pc.code}</h4>
-                        <div className="flex items-center gap-3 mt-4">
-                           <span className="bg-green-100 text-green-700 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
-                             {pc.discount_value}{pc.discount_type === 'percentage' ? '%' : ' LE'} OFF
-                           </span>
-                           {pc.min_order_value > 0 && (
-                             <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
-                               MIN {pc.min_order_value} LE
-                             </span>
-                           )}
-                        </div>
-                        {pc.applicable_categories && pc.applicable_categories.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                             {pc.applicable_categories.map((catId: string) => (
-                               <span key={catId} className="bg-red-50 text-red-600 text-[8px] font-black px-3 py-1 rounded-lg border border-red-100">
-                                 {config.layout.find(c => c.id === catId)?.nameEn || catId}
-                               </span>
-                             ))}
-                          </div>
-                        )}
-                        {pc.applicable_products && pc.applicable_products.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                             {pc.applicable_products.map((prodId: string) => (
-                               <span key={prodId} className="bg-slate-950 text-white text-[8px] font-black px-3 py-1 rounded-lg">
-                                 {menu.find(p => p.id === prodId)?.name || prodId}
-                               </span>
-                             ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-10 pt-10 border-t-2 border-slate-50 flex items-center justify-between">
-                         <div className="flex items-center gap-4">
+                        <div className="mt-10 pt-10 border-t-2 border-slate-50 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
                             <div className={`w-3 h-3 rounded-full ${pc.is_active ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-slate-300'}`}></div>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{pc.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
-                         </div>
-                         <button 
-                           onClick={async () => await supabase.from('promo_codes').update({ is_active: !pc.is_active }).eq('code', pc.code)}
-                           className="text-[10px] font-black text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl uppercase tracking-widest"
-                         >
-                           TOGGLE STATUS
-                         </button>
+                          </div>
+                          <button
+                            onClick={async () => await supabase.from('promo_codes').update({ is_active: !pc.is_active }).eq('code', pc.code)}
+                            className="text-[10px] font-black text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl uppercase tracking-widest"
+                          >
+                            TOGGLE STATUS
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeTab === 'builder' && (
-              <div className="flex gap-10 h-full animate-reveal pb-20">
-                <div className="w-64 space-y-3 shrink-0">
-                  <button onClick={() => setBuilderSubTab('branding')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'branding' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ImageIcon size={16} className="inline mr-3" /> Visuals</button>
-                  <button onClick={() => setBuilderSubTab('hero')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'hero' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Sparkles size={16} className="inline mr-3" /> Hero Offers</button>
-                  <button onClick={() => setBuilderSubTab('categories')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'categories' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ListOrdered size={16} className="inline mr-3" /> Categories</button>
-                  <button onClick={() => setBuilderSubTab('tags')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'tags' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><TagIcon size={16} className="inline mr-3" /> Tags & Filters</button>
-                  <button onClick={() => setBuilderSubTab('social')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'social' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Share2 size={16} className="inline mr-3" /> Social Links</button>
-                </div>
+              {activeTab === 'builder' && (
+                <div className="flex gap-10 h-full animate-reveal pb-20">
+                  <div className="w-64 space-y-3 shrink-0">
+                    <button onClick={() => setBuilderSubTab('branding')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'branding' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ImageIcon size={16} className="inline mr-3" /> Visuals</button>
+                    <button onClick={() => setBuilderSubTab('hero')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'hero' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Sparkles size={16} className="inline mr-3" /> Hero Offers</button>
+                    <button onClick={() => setBuilderSubTab('categories')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'categories' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><ListOrdered size={16} className="inline mr-3" /> Categories</button>
+                    <button onClick={() => setBuilderSubTab('tags')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'tags' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><TagIcon size={16} className="inline mr-3" /> Tags & Filters</button>
+                    <button onClick={() => setBuilderSubTab('social')} className={`w-full text-left px-8 py-6 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all ${builderSubTab === 'social' ? 'bg-red-600 text-white shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Share2 size={16} className="inline mr-3" /> Social Links</button>
+                  </div>
 
-                <div className="flex-1 space-y-8">
-                  {builderSubTab === 'branding' && (
-                    <div className="space-y-8 animate-reveal">
-                      <div className={cardStyle}>
-                        <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><Palette size={28} /> Brand Identity</h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-4">
-                            <label className={labelStyle}>Brand Name (EN)</label>
-                            <input className={inputStyle} value={config.brandNameEn || ''} onChange={e => syncConfig({ ...config, brandNameEn: e.target.value })} placeholder="e.g. MY BRAND" />
-                          </div>
-                          <div className="space-y-4">
-                            <label className={labelStyle}>اسم البراند (AR)</label>
-                            <input dir="rtl" className={inputStyle + " font-arabic"} value={config.brandNameAr || ''} onChange={e => syncConfig({ ...config, brandNameAr: e.target.value })} placeholder="مثلاً: براندي" />
-                          </div>
-                        </div>
+                  <div className="flex-1 space-y-8">
+                    {builderSubTab === 'branding' && (
+                      <div className="space-y-8 animate-reveal">
+                        <div className={cardStyle}>
+                          <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><Palette size={28} /> Brand Identity</h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-4">
-                            <label className={labelStyle}>SEO Meta Title (EN)</label>
-                            <input className={inputStyle} value={config.metaTitleEn || ''} onChange={e => syncConfig({ ...config, metaTitleEn: e.target.value })} placeholder="Browser Tab Title" />
-                          </div>
-                          <div className="space-y-4">
-                            <label className={labelStyle}>عنوان التبويب (AR)</label>
-                            <input dir="rtl" className={inputStyle + " font-arabic"} value={config.metaTitleAr || ''} onChange={e => syncConfig({ ...config, metaTitleAr: e.target.value })} placeholder="عنوان المتصفح" />
-                          </div>
-                        </div>
-
-                        <div className="pt-6 border-t">
-                          <label className={labelStyle}>Brand Theme Colors</label>
-                          <div className="flex items-center gap-6 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner">
-                            <div className="relative">
-                              <input 
-                                type="color" 
-                                className="w-20 h-20 rounded-2xl cursor-pointer border-4 border-white shadow-xl" 
-                                value={config.theme.primaryColor} 
-                                onChange={e => syncConfig({ ...config, theme: { ...config.theme, primaryColor: e.target.value } })} 
-                              />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                              <label className={labelStyle}>Brand Name (EN)</label>
+                              <input className={inputStyle} value={config.brandNameEn || ''} onChange={e => syncConfig({ ...config, brandNameEn: e.target.value })} placeholder="e.g. MY BRAND" />
                             </div>
-                            <div className="flex-1">
-                              <span className="text-xs font-black text-slate-900 uppercase tracking-widest block mb-1">Primary Brand Color</span>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">This color will be applied to all buttons, highlights, and icons across the system.</p>
-                              <code className="mt-2 inline-block bg-white px-3 py-1 rounded-lg text-xs font-black text-slate-900 border border-slate-100 uppercase">{config.theme.primaryColor}</code>
+                            <div className="space-y-4">
+                              <label className={labelStyle}>اسم البراند (AR)</label>
+                              <input dir="rtl" className={inputStyle + " font-arabic"} value={config.brandNameAr || ''} onChange={e => syncConfig({ ...config, brandNameAr: e.target.value })} placeholder="مثلاً: براندي" />
                             </div>
                           </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6 border-t">
-                          <div className="space-y-4">
-                            <label className={labelStyle}>Standard Red Logo</label>
-                            <div onClick={() => logoRedFileInputRef.current?.click()} className="relative w-full h-64 border-4 border-dashed rounded-[3.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-all bg-slate-50 overflow-hidden shadow-inner group">
-                              <input type="file" ref={logoRedFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'logoRed')} />
-                              {config.header.logoRed ? <img src={config.header.logoRed} className="h-32 object-contain group-hover:scale-105 transition-transform" /> : <Upload size={48} className="text-slate-300" />}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                              <label className={labelStyle}>SEO Meta Title (EN)</label>
+                              <input className={inputStyle} value={config.metaTitleEn || ''} onChange={e => syncConfig({ ...config, metaTitleEn: e.target.value })} placeholder="Browser Tab Title" />
+                            </div>
+                            <div className="space-y-4">
+                              <label className={labelStyle}>عنوان التبويب (AR)</label>
+                              <input dir="rtl" className={inputStyle + " font-arabic"} value={config.metaTitleAr || ''} onChange={e => syncConfig({ ...config, metaTitleAr: e.target.value })} placeholder="عنوان المتصفح" />
                             </div>
                           </div>
-                          <div className="space-y-4">
-                            <label className={labelStyle}>Alternate White Logo</label>
-                            <div onClick={() => logoWhiteFileInputRef.current?.click()} className="relative w-full h-64 border-4 border-dashed rounded-[3.5rem] flex flex-col items-center justify-center cursor-pointer bg-slate-900 overflow-hidden shadow-2xl group">
-                              <input type="file" ref={logoWhiteFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'logoWhite')} />
-                              {config.header.logoWhite ? <img src={config.header.logoWhite} className="h-32 object-contain group-hover:scale-105 transition-transform" /> : <Upload size={48} className="text-slate-600" />}
+
+                          <div className="pt-6 border-t">
+                            <label className={labelStyle}>Brand Theme Colors</label>
+                            <div className="flex items-center gap-6 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner">
+                              <div className="relative">
+                                <input
+                                  type="color"
+                                  className="w-20 h-20 rounded-2xl cursor-pointer border-4 border-white shadow-xl"
+                                  value={config.theme.primaryColor}
+                                  onChange={e => syncConfig({ ...config, theme: { ...config.theme, primaryColor: e.target.value } })}
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <span className="text-xs font-black text-slate-900 uppercase tracking-widest block mb-1">Primary Brand Color</span>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">This color will be applied to all buttons, highlights, and icons across the system.</p>
+                                <code className="mt-2 inline-block bg-white px-3 py-1 rounded-lg text-xs font-black text-slate-900 border border-slate-100 uppercase">{config.theme.primaryColor}</code>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6 border-t">
+                            <div className="space-y-4">
+                              <label className={labelStyle}>Standard Red Logo</label>
+                              <div onClick={() => logoRedFileInputRef.current?.click()} className="relative w-full h-64 border-4 border-dashed rounded-[3.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-all bg-slate-50 overflow-hidden shadow-inner group">
+                                <input type="file" ref={logoRedFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'logoRed')} />
+                                {config.header.logoRed ? <img src={config.header.logoRed} className="h-32 object-contain group-hover:scale-105 transition-transform" /> : <Upload size={48} className="text-slate-300" />}
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              <label className={labelStyle}>Alternate White Logo</label>
+                              <div onClick={() => logoWhiteFileInputRef.current?.click()} className="relative w-full h-64 border-4 border-dashed rounded-[3.5rem] flex flex-col items-center justify-center cursor-pointer bg-slate-900 overflow-hidden shadow-2xl group">
+                                <input type="file" ref={logoWhiteFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'logoWhite')} />
+                                {config.header.logoWhite ? <img src={config.header.logoWhite} className="h-32 object-contain group-hover:scale-105 transition-transform" /> : <Upload size={48} className="text-slate-600" />}
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {builderSubTab === 'hero' && (
-                    <div className="space-y-8 animate-reveal">
-                      <div className="flex justify-between items-center bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
-                        <h3 className="text-3xl font-black brand-font uppercase text-slate-900">Slider Campaigns</h3>
-                        <button onClick={() => { setEditingBanner({ titleEn: '', titleAr: '', image: '', offerPrice: 0, originalPrice: 0, offerLabelEn: '', offerLabelAr: '', promoTagEn: '', promoTagAr: '' }); setIsBannerFormOpen(true); }}
-                          className="bg-red-600 text-white px-10 rounded-[2rem] py-5 font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-red-200">New Offer</button>
-                      </div>
-                      <div className="grid grid-cols-1 gap-6">
-                        {config.hero.banners.map(b => (
-                          <div key={b.id} className="bg-white p-10 rounded-[3.5rem] border-2 border-slate-50 flex flex-col md:flex-row items-center justify-between shadow-sm group hover:border-red-600 transition-all">
-                            <div className="flex flex-col md:flex-row items-center gap-10">
-                              <div className="relative shrink-0">
-                                <img src={b.image} className="w-64 h-32 object-cover rounded-3xl bg-slate-50 shadow-inner border" />
-                              </div>
-                              <div className="text-center md:text-left">
-                                <h5 className="font-black text-xl text-slate-900 uppercase leading-none mb-2">Campaign Slide</h5>
-                                <p className="text-xs font-bold text-red-600 flex items-center gap-2 justify-center md:justify-start">
-                                  Linked to: {config.layout.find(c => c.id === b.targetCategoryId)?.nameEn || 'No Link'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex gap-4">
-                              <button onClick={() => { setEditingBanner(b); setIsBannerFormOpen(true); }} className="p-5 bg-slate-50 text-slate-300 hover:text-red-600 rounded-[1.5rem] transition-all"><Edit2 size={24} /></button>
-                              <button onClick={() => { if (confirm('Delete offer?')) { onUpdateConfig({ ...config, hero: { banners: config.hero.banners.filter(x => x.id !== b.id) } }); } }} className="p-5 bg-slate-50 text-slate-300 hover:text-slate-900 rounded-[1.5rem] transition-all"><Trash2 size={24} /></button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {builderSubTab === 'categories' && (
-                    <div className="space-y-8 animate-reveal">
-                      <div className={cardStyle}>
-                        <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><ListOrdered size={28} /> Menu Sections</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <input className={inputStyle} placeholder="Name (EN)" value={newCat.en} onChange={e => setNewCat({ ...newCat, en: e.target.value })} />
-                          <div className="flex gap-4">
-                            <input dir="rtl" className={inputStyle + " font-arabic"} placeholder="الاسم (AR)" value={newCat.ar} onChange={e => setNewCat({ ...newCat, ar: e.target.value })} />
-                            <button onClick={handleAddCategory} className="bg-red-600 text-white px-8 rounded-2xl shadow-xl shadow-red-200 hover:scale-105 transition-all"><Plus size={24} /></button>
-                          </div>
+                    )}
+                    {builderSubTab === 'hero' && (
+                      <div className="space-y-8 animate-reveal">
+                        <div className="flex justify-between items-center bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100">
+                          <h3 className="text-3xl font-black brand-font uppercase text-slate-900">Slider Campaigns</h3>
+                          <button onClick={() => { setEditingBanner({ titleEn: '', titleAr: '', image: '', offerPrice: 0, originalPrice: 0, offerLabelEn: '', offerLabelAr: '', promoTagEn: '', promoTagAr: '' }); setIsBannerFormOpen(true); }}
+                            className="bg-red-600 text-white px-10 rounded-[2rem] py-5 font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-red-200">New Offer</button>
                         </div>
-                        <div className="space-y-4 pt-6">
-                          {config.layout.map((cat, idx) => (
-                            <div key={cat.id} className="flex items-center justify-between p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 group hover:bg-white transition-all shadow-sm">
-                              <div className="flex items-center gap-6">
-                                <span className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center font-black text-xs text-red-600 border-2 border-slate-100 shadow-sm">{idx + 1}</span>
-                                <div><h5 className="font-black text-slate-900 uppercase text-lg leading-none mb-1">{cat.nameEn}</h5><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cat.nameAr}</p></div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex flex-col gap-1 mr-2">
-                                  <button 
-                                    disabled={idx === 0}
-                                    onClick={() => moveCategory(idx, 'up')}
-                                    className={`p-1.5 rounded-lg transition-all ${idx === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                  >
-                                    <ChevronUp size={18} />
-                                  </button>
-                                  <button 
-                                    disabled={idx === config.layout.length - 1}
-                                    onClick={() => moveCategory(idx, 'down')}
-                                    className={`p-1.5 rounded-lg transition-all ${idx === config.layout.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                  >
-                                    <ChevronDown size={18} />
-                                  </button>
+                        <div className="grid grid-cols-1 gap-6">
+                          {config.hero.banners.map(b => (
+                            <div key={b.id} className="bg-white p-10 rounded-[3.5rem] border-2 border-slate-50 flex flex-col md:flex-row items-center justify-between shadow-sm group hover:border-red-600 transition-all">
+                              <div className="flex flex-col md:flex-row items-center gap-10">
+                                <div className="relative shrink-0">
+                                  <img src={b.image} className="w-64 h-32 object-cover rounded-3xl bg-slate-50 shadow-inner border" />
                                 </div>
-                                <button onClick={() => { if (confirm('Delete?')) { syncConfig({ ...config, layout: config.layout.filter(l => l.id !== cat.id) }); } }} className="p-4 text-slate-300 hover:text-slate-900 transition-all"><Trash2 size={20} /></button>
+                                <div className="text-center md:text-left">
+                                  <h5 className="font-black text-xl text-slate-900 uppercase leading-none mb-2">Campaign Slide</h5>
+                                  <p className="text-xs font-bold text-red-600 flex items-center gap-2 justify-center md:justify-start">
+                                    Linked to: {config.layout.find(c => c.id === b.targetCategoryId)?.nameEn || 'No Link'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-4">
+                                <button onClick={() => { setEditingBanner(b); setIsBannerFormOpen(true); }} className="p-5 bg-slate-50 text-slate-300 hover:text-red-600 rounded-[1.5rem] transition-all"><Edit2 size={24} /></button>
+                                <button onClick={() => { if (confirm('Delete offer?')) { onUpdateConfig({ ...config, hero: { banners: config.hero.banners.filter(x => x.id !== b.id) } }); } }} className="p-5 bg-slate-50 text-slate-300 hover:text-slate-900 rounded-[1.5rem] transition-all"><Trash2 size={24} /></button>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {builderSubTab === 'tags' && (
-                    <div className="space-y-8 animate-reveal">
-                      <div className={cardStyle}>
-                        <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><TagIcon size={28} /> Tags & Filters</h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-slate-50 rounded-[3rem] border border-slate-100">
-                          <div>
-                            <label className={labelStyle}>Filter Bar Title (EN)</label>
-                            <input
-                              className={inputStyle}
-                              value={localFilterLabelEn}
-                              onChange={e => setLocalFilterLabelEn(e.target.value)}
-                              onBlur={() => onUpdateConfig({ ...config, filterLabelEn: localFilterLabelEn })}
-                            />
-                          </div>
-                          <div>
-                            <label className={labelStyle}>عنوان شريط التصفية (AR)</label>
-                            <input
-                              dir="rtl"
-                              className={inputStyle + " font-arabic"}
-                              value={localFilterLabelAr}
-                              onChange={e => setLocalFilterLabelAr(e.target.value)}
-                              onBlur={() => onUpdateConfig({ ...config, filterLabelAr: localFilterLabelAr })}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="pt-6">
-                          <label className={labelStyle}>Manage Individual Tags</label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            <input className={inputStyle} placeholder="Tag Label (EN)" value={newTag.en} onChange={e => setNewTag({ ...newTag, en: e.target.value })} />
+                    )}
+                    {builderSubTab === 'categories' && (
+                      <div className="space-y-8 animate-reveal">
+                        <div className={cardStyle}>
+                          <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><ListOrdered size={28} /> Menu Sections</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input className={inputStyle} placeholder="Name (EN)" value={newCat.en} onChange={e => setNewCat({ ...newCat, en: e.target.value })} />
                             <div className="flex gap-4">
-                              <input dir="rtl" className={inputStyle + " font-arabic"} placeholder="اسم الوسم (AR)" value={newTag.ar} onChange={e => setNewTag({ ...newTag, ar: e.target.value })} />
-                              <button onClick={handleAddTag} className="bg-red-600 text-white px-8 rounded-2xl shadow-xl shadow-red-200 hover:scale-105 transition-all"><Plus size={24} /></button>
+                              <input dir="rtl" className={inputStyle + " font-arabic"} placeholder="الاسم (AR)" value={newCat.ar} onChange={e => setNewCat({ ...newCat, ar: e.target.value })} />
+                              <button onClick={handleAddCategory} className="bg-red-600 text-white px-8 rounded-2xl shadow-xl shadow-red-200 hover:scale-105 transition-all"><Plus size={24} /></button>
                             </div>
                           </div>
-
-                          <div className="space-y-4">
-                            {config.tags.length === 0 && (
-                              <div className="text-center py-10 bg-white rounded-[2rem] border-2 border-dashed border-slate-100 italic text-slate-400 font-medium font-arabic">
-                                {config.branchStatus === 'open' ? 'لا يوجد وسوم مضافة حالياً. استخدم الحقول أعلاه لإضافة وسم جديد.' : 'No tags added yet. Use the fields above to create labels.'}
-                              </div>
-                            )}
-                            {config.tags.map((tag) => (
-                              <div key={tag.id} className="flex items-center justify-between p-6 bg-white rounded-[2rem] border-2 border-slate-50 hover:border-red-100 transition-all group">
-                                <div className="flex items-center gap-4">
-                                  <div className="p-3 bg-slate-50 rounded-xl text-slate-400 group-hover:text-red-600 transition-colors">
-                                    <TagIcon size={18} />
-                                  </div>
-                                  <div>
-                                    <h5 className="font-black text-slate-900 uppercase text-sm leading-none">{tag.nameEn}</h5>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">{tag.nameAr}</p>
-                                  </div>
+                          <div className="space-y-4 pt-6">
+                            {config.layout.map((cat, idx) => (
+                              <div key={cat.id} className="flex items-center justify-between p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 group hover:bg-white transition-all shadow-sm">
+                                <div className="flex items-center gap-6">
+                                  <span className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center font-black text-xs text-red-600 border-2 border-slate-100 shadow-sm">{idx + 1}</span>
+                                  <div><h5 className="font-black text-slate-900 uppercase text-lg leading-none mb-1">{cat.nameEn}</h5><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cat.nameAr}</p></div>
                                 </div>
-                                <button onClick={() => syncConfig({ ...config, tags: config.tags.filter(t => t.id !== tag.id) })} className="p-3 text-slate-200 hover:text-red-600 transition-colors">
-                                  <Trash2 size={20} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex flex-col gap-1 mr-2">
+                                    <button
+                                      disabled={idx === 0}
+                                      onClick={() => moveCategory(idx, 'up')}
+                                      className={`p-1.5 rounded-lg transition-all ${idx === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                    >
+                                      <ChevronUp size={18} />
+                                    </button>
+                                    <button
+                                      disabled={idx === config.layout.length - 1}
+                                      onClick={() => moveCategory(idx, 'down')}
+                                      className={`p-1.5 rounded-lg transition-all ${idx === config.layout.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                    >
+                                      <ChevronDown size={18} />
+                                    </button>
+                                  </div>
+                                  <button onClick={() => { if (confirm('Delete?')) { syncConfig({ ...config, layout: config.layout.filter(l => l.id !== cat.id) }); } }} className="p-4 text-slate-300 hover:text-slate-900 transition-all"><Trash2 size={20} /></button>
+                                </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {builderSubTab === 'social' && (
-                    <div className="space-y-8 animate-reveal">
-                      <div className={cardStyle}>
-                        <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><Share2 size={28} /> Connections</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="relative"><Facebook className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.facebook} placeholder="Facebook Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, facebook: e.target.value } })} /></div>
-                          <div className="relative"><Instagram className="absolute left-5 top-1/2 -translate-y-1/2 text-pink-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.instagram} placeholder="Instagram Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, instagram: e.target.value } })} /></div>
-                          <div className="relative"><TikTokIcon size={24} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-900" /><input className={inputStyle + " pl-16"} value={config.footer.tiktok} placeholder="TikTok Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, tiktok: e.target.value } })} /></div>
-                          
-                          <div className="relative">
-                            <Phone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                            <input 
-                              className={inputStyle + " pl-16"} 
-                              value={config.header.phone} 
-                              placeholder="Hotline Number" 
-                              onChange={e => syncConfig({ ...config, header: { ...config.header, phone: e.target.value } })} 
-                            />
+                    )}
+                    {builderSubTab === 'tags' && (
+                      <div className="space-y-8 animate-reveal">
+                        <div className={cardStyle}>
+                          <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><TagIcon size={28} /> Tags & Filters</h3>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-slate-50 rounded-[3rem] border border-slate-100">
+                            <div>
+                              <label className={labelStyle}>Filter Bar Title (EN)</label>
+                              <input
+                                className={inputStyle}
+                                value={localFilterLabelEn}
+                                onChange={e => setLocalFilterLabelEn(e.target.value)}
+                                onBlur={() => onUpdateConfig({ ...config, filterLabelEn: localFilterLabelEn })}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelStyle}>عنوان شريط التصفية (AR)</label>
+                              <input
+                                dir="rtl"
+                                className={inputStyle + " font-arabic"}
+                                value={localFilterLabelAr}
+                                onChange={e => setLocalFilterLabelAr(e.target.value)}
+                                onBlur={() => onUpdateConfig({ ...config, filterLabelAr: localFilterLabelAr })}
+                              />
+                            </div>
                           </div>
-                          <div className="relative">
-                            <MessageSquare className="absolute left-5 top-1/2 -translate-y-1/2 text-green-500" size={24} />
-                            <input 
-                              className={inputStyle + " pl-16"} 
-                              value={config.header.whatsapp || ''} 
-                              placeholder="WhatsApp Number" 
-                              onChange={e => syncConfig({ ...config, header: { ...config.header, whatsapp: e.target.value } })} 
-                            />
-                          </div>
-                          
-                          <div className="relative md:col-span-3">
-                            <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-red-600" size={24} />
-                            <input 
-                              className={inputStyle + " pl-16"} 
-                              value={config.footer.locationUrl || ''} 
-                              placeholder="Google Maps Location URL" 
-                              onChange={e => syncConfig({ ...config, footer: { ...config.footer, locationUrl: e.target.value } })} 
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {activeTab === 'areas' && (
-              <div className="h-full flex flex-col lg:flex-row gap-8 animate-reveal pb-20 overflow-hidden">
-                <div className="w-full lg:w-[450px] flex flex-col h-full bg-white rounded-[4rem] p-10 border border-slate-100 shadow-xl z-20 overflow-y-auto no-scrollbar relative shrink-0">
-                  <div className="flex flex-col gap-4 mb-10 border-b pb-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="bg-red-600 p-3.5 rounded-2xl shadow-xl shadow-red-200 text-white"><MapIcon size={24} /></div>
-                        <h3 className="text-2xl font-black brand-font uppercase text-slate-900">Zone Manager</h3>
-                      </div>
-                      {drawingMode && (
-                        <span className="flex items-center gap-2 bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
-                          <Navigation size={12} fill="currentColor" /> Drawing Active
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Branch Status Toggle */}
-                    <div className="flex items-center justify-between bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-8 shadow-sm">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-4 h-4 rounded-full ${config.branchStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-600'}`} />
-                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 leading-none">
-                          Branch Status: {config.branchStatus === 'open' ? 'Accepting Orders' : 'Closed'}
-                        </h4>
-                      </div>
-                      <button
-                        onClick={() => syncConfig({ ...config, branchStatus: config.branchStatus === 'open' ? 'closed' : 'open' })}
-                        className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all shadow-lg ${config.branchStatus === 'open' ? 'bg-red-600 text-white shadow-red-100' : 'bg-green-600 text-white shadow-green-100'}`}
-                      >
-                        {config.branchStatus === 'open' ? 'Go Offline' : 'Go Online'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {!drawingMode ? (
-                    <div className="space-y-6">
-                      <button onClick={() => { setDrawingMode(true); setCurrentPolygonPoints([]); setSelectedAreaId(null); }}
-                        className="w-full bg-red-600 text-white font-black py-6 rounded-[2rem] flex items-center justify-center gap-4 uppercase tracking-widest text-xs shadow-2xl shadow-red-200 hover:scale-[1.02] transition-all active:scale-95">
-                        <Plus size={20} strokeWidth={4} /> Draw New Territory
-                      </button>
-
-                      <div className="pt-4 space-y-4">
-                        <div className="flex items-center justify-between px-2">
-                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Active Corridors ({config.areas.length})</span>
-                          <BarChart3 size={16} className="text-slate-300" />
-                        </div>
-                        {config.areas.map(area => (
-                          <div key={area.id}
-                            onClick={() => focusOnArea(area)}
-                            className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer group flex items-center justify-between ${selectedAreaId === area.id ? 'bg-red-50 border-red-600 shadow-lg' : 'bg-slate-50 border-slate-100 hover:bg-white hover:border-slate-300'}`}>
-                            <div className="flex items-center gap-5">
-                              <div className="flex flex-col gap-1">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); moveArea(config.areas.indexOf(area), 'up'); }}
-                                  disabled={config.areas.indexOf(area) === 0}
-                                  className="p-1 text-slate-300 hover:text-red-600 disabled:opacity-10"
-                                >
-                                  <ChevronUp size={16} />
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); moveArea(config.areas.indexOf(area), 'down'); }}
-                                  disabled={config.areas.indexOf(area) === config.areas.length - 1}
-                                  className="p-1 text-slate-300 hover:text-red-600 disabled:opacity-10"
-                                >
-                                  <ChevronDown size={16} />
-                                </button>
-                              </div>
-                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${selectedAreaId === area.id ? 'bg-red-600 text-white shadow-xl shadow-red-100' : 'bg-white text-slate-400 border border-slate-100'}`}>
-                                <Navigation size={20} className={selectedAreaId === area.id ? '' : 'rotate-45'} />
-                              </div>
-                              <div>
-                                <h5 className={`font-black uppercase text-base leading-none mb-1 ${selectedAreaId === area.id ? 'text-red-600' : 'text-slate-900'}`}>{area.nameAr}</h5>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{area.nameEn} • {area.fee} LE Fee</p>
+                          <div className="pt-6">
+                            <label className={labelStyle}>Manage Individual Tags</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                              <input className={inputStyle} placeholder="Tag Label (EN)" value={newTag.en} onChange={e => setNewTag({ ...newTag, en: e.target.value })} />
+                              <div className="flex gap-4">
+                                <input dir="rtl" className={inputStyle + " font-arabic"} placeholder="اسم الوسم (AR)" value={newTag.ar} onChange={e => setNewTag({ ...newTag, ar: e.target.value })} />
+                                <button onClick={handleAddTag} className="bg-red-600 text-white px-8 rounded-2xl shadow-xl shadow-red-200 hover:scale-105 transition-all"><Plus size={24} /></button>
                               </div>
                             </div>
-                            <button onClick={(e) => { e.stopPropagation(); if(confirm('Delete area?')) syncConfig({ ...config, areas: config.areas.filter(a => a.id !== area.id) }); refreshExistingZones(); }}
-                              className="p-3 text-slate-200 hover:text-red-600 hover:bg-white rounded-xl transition-all opacity-0 group-hover:opacity-100">
-                              <Trash2 size={20} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-10 animate-reveal">
-                      <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-8 shadow-2xl">
-                        <div>
-                          <label className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 block">1. Identity Information</label>
-                          <div className="space-y-4">
-                            <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white font-black outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="Territory Name (EN)" value={newArea.nameEn} onChange={e => setNewArea({ ...newArea, nameEn: e.target.value })} />
-                            <input dir="rtl" className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white font-black font-arabic outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="اسم المنطقة (AR)" value={newArea.nameAr} onChange={e => setNewArea({ ...newArea, nameAr: e.target.value })} />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 block">2. Pricing Rules</label>
-                          <div className="relative">
-                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/30 font-black text-xs">LE</div>
-                            <input type="number" className="w-full bg-white/5 border border-white/10 p-4 pl-12 rounded-2xl text-white font-black outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="Flat Delivery Fee" value={newArea.fee || ''} onChange={e => setNewArea({ ...newArea, fee: Number(e.target.value) })} />
-                          </div>
-                        </div>
-                        <div className="pt-4 border-t border-white/10 space-y-4">
-                          <p className="text-[9px] font-black text-white/40 uppercase text-center italic tracking-widest">Click 3 or more points on the map to define boundaries</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => { setDrawingMode(false); setCurrentPolygonPoints([]); ghostLayerRef.current?.clearLayers(); }}
-                              className="bg-white/5 text-white/60 font-black py-4 rounded-2xl hover:bg-white/10 transition-all uppercase text-[10px] tracking-widest">Discard</button>
-                            <button disabled={currentPolygonPoints.length < 3 || !newArea.nameEn || !newArea.nameAr}
-                              onClick={() => { 
-                                syncConfig({ 
-                                  ...config, 
-                                  areas: [...(config.areas || []), { id: 'a' + Date.now(), ...newArea, points: currentPolygonPoints } as Area] 
-                                }); 
-                                setDrawingMode(false); 
-                                setCurrentPolygonPoints([]); 
-                                setNewArea({ nameEn: '', nameAr: '', fee: 0 }); // Reset form
-                                refreshExistingZones(); 
-                              }}
-                              className="bg-red-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-red-900/40 transition-all uppercase text-[10px] tracking-widest disabled:opacity-20 flex items-center justify-center gap-2">
-                              <Check size={16} strokeWidth={4} /> Save Zone
-                            </button>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="p-8 bg-red-50 rounded-[3rem] border border-red-100 flex items-start gap-4">
-                        <Info size={24} className="text-red-600 shrink-0" />
-                        <p className="text-[11px] font-bold text-red-900 leading-relaxed uppercase">The system uses Geofencing technology. Only orders placed inside these boundaries will be accepted at these rates.</p>
+                            <div className="space-y-4">
+                              {config.tags.length === 0 && (
+                                <div className="text-center py-10 bg-white rounded-[2rem] border-2 border-dashed border-slate-100 italic text-slate-400 font-medium font-arabic">
+                                  {config.branchStatus === 'open' ? 'لا يوجد وسوم مضافة حالياً. استخدم الحقول أعلاه لإضافة وسم جديد.' : 'No tags added yet. Use the fields above to create labels.'}
+                                </div>
+                              )}
+                              {config.tags.map((tag) => (
+                                <div key={tag.id} className="flex items-center justify-between p-6 bg-white rounded-[2rem] border-2 border-slate-50 hover:border-red-100 transition-all group">
+                                  <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-slate-50 rounded-xl text-slate-400 group-hover:text-red-600 transition-colors">
+                                      <TagIcon size={18} />
+                                    </div>
+                                    <div>
+                                      <h5 className="font-black text-slate-900 uppercase text-sm leading-none">{tag.nameEn}</h5>
+                                      <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest leading-none">{tag.nameAr}</p>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => syncConfig({ ...config, tags: config.tags.filter(t => t.id !== tag.id) })} className="p-3 text-slate-200 hover:text-red-600 transition-colors">
+                                    <Trash2 size={20} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {builderSubTab === 'social' && (
+                      <div className="space-y-8 animate-reveal">
+                        <div className={cardStyle}>
+                          <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><Share2 size={28} /> Connections</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="relative"><Facebook className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.facebook} placeholder="Facebook Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, facebook: e.target.value } })} /></div>
+                            <div className="relative"><Instagram className="absolute left-5 top-1/2 -translate-y-1/2 text-pink-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.instagram} placeholder="Instagram Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, instagram: e.target.value } })} /></div>
+                            <div className="relative"><TikTokIcon size={24} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-900" /><input className={inputStyle + " pl-16"} value={config.footer.tiktok} placeholder="TikTok Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, tiktok: e.target.value } })} /></div>
+
+                            <div className="relative">
+                              <Phone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                              <input
+                                className={inputStyle + " pl-16"}
+                                value={config.header.phone}
+                                placeholder="Hotline Number"
+                                onChange={e => syncConfig({ ...config, header: { ...config.header, phone: e.target.value } })}
+                              />
+                            </div>
+                            <div className="relative">
+                              <MessageSquare className="absolute left-5 top-1/2 -translate-y-1/2 text-green-500" size={24} />
+                              <input
+                                className={inputStyle + " pl-16"}
+                                value={config.header.whatsapp || ''}
+                                placeholder="WhatsApp Number"
+                                onChange={e => syncConfig({ ...config, header: { ...config.header, whatsapp: e.target.value } })}
+                              />
+                            </div>
+
+                            <div className="relative md:col-span-3">
+                              <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-red-600" size={24} />
+                              <input
+                                className={inputStyle + " pl-16"}
+                                value={config.footer.locationUrl || ''}
+                                placeholder="Google Maps Location URL"
+                                onChange={e => syncConfig({ ...config, footer: { ...config.footer, locationUrl: e.target.value } })}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                <div className="flex-1 relative bg-slate-200 rounded-[4.5rem] overflow-hidden border-[10px] border-white shadow-2xl shadow-slate-200 group">
-                  <div id="admin-logistics-map" className="absolute inset-0 w-full h-full"></div>
-
-                  {drawingMode && (
-                    <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20 bg-white/95 backdrop-blur-md px-10 py-5 rounded-[2.5rem] shadow-2xl border-4 border-red-600 flex items-center gap-6 animate-reveal">
-                      <div className="w-10 h-10 bg-red-600 text-white rounded-full flex items-center justify-center font-black animate-bounce">{currentPolygonPoints.length}</div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-900 uppercase leading-none mb-1">Point Capturing Mode</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mark territory on the satellite grid</span>
+              {activeTab === 'areas' && (
+                <div className="h-full flex flex-col lg:flex-row gap-8 animate-reveal pb-20 overflow-hidden">
+                  <div className="w-full lg:w-[450px] flex flex-col h-full bg-white rounded-[4rem] p-10 border border-slate-100 shadow-xl z-20 overflow-y-auto no-scrollbar relative shrink-0">
+                    <div className="flex flex-col gap-4 mb-10 border-b pb-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-red-600 p-3.5 rounded-2xl shadow-xl shadow-red-200 text-white"><MapIcon size={24} /></div>
+                          <h3 className="text-2xl font-black brand-font uppercase text-slate-900">Zone Manager</h3>
+                        </div>
+                        {drawingMode && (
+                          <span className="flex items-center gap-2 bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
+                            <Navigation size={12} fill="currentColor" /> Drawing Active
+                          </span>
+                        )}
                       </div>
-                      <button onClick={() => setCurrentPolygonPoints(prev => prev.slice(0, -1))} className="p-3 bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-600 rounded-2xl transition-all">
-                        <RotateCcw size={20} />
-                      </button>
-                    </div>
-                  )}
 
-                  {!drawingMode && (
-                    <div className="absolute bottom-10 right-10 z-20 flex flex-col gap-3">
-                      <button onClick={() => adminMapRef.current?.setView([30.0444, 31.2357], 11)} className="bg-white p-4 rounded-2xl shadow-2xl text-slate-900 hover:text-red-600 transition-all active:scale-90 border border-slate-100">
-                        <MapPin size={28} />
-                      </button>
-                      <button onClick={() => setDrawingMode(true)} className="bg-red-600 text-white p-4 rounded-2xl shadow-2xl hover:bg-slate-900 transition-all active:scale-90 shadow-red-200">
-                        <Plus size={28} strokeWidth={4} />
-                      </button>
+                      {/* Branch Status Toggle */}
+                      <div className="flex items-center justify-between bg-white p-8 rounded-[2.5rem] border border-slate-100 mb-8 shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-4 h-4 rounded-full ${config.branchStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-red-600'}`} />
+                          <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 leading-none">
+                            Branch Status: {config.branchStatus === 'open' ? 'Accepting Orders' : 'Closed'}
+                          </h4>
+                        </div>
+                        <button
+                          onClick={() => syncConfig({ ...config, branchStatus: config.branchStatus === 'open' ? 'closed' : 'open' })}
+                          className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all shadow-lg ${config.branchStatus === 'open' ? 'bg-red-600 text-white shadow-red-100' : 'bg-green-600 text-white shadow-green-100'}`}
+                        >
+                          {config.branchStatus === 'open' ? 'Go Offline' : 'Go Online'}
+                        </button>
+                      </div>
                     </div>
-                  )}
+
+                    {!drawingMode ? (
+                      <div className="space-y-6">
+                        <button onClick={() => { setDrawingMode(true); setCurrentPolygonPoints([]); setSelectedAreaId(null); }}
+                          className="w-full bg-red-600 text-white font-black py-6 rounded-[2rem] flex items-center justify-center gap-4 uppercase tracking-widest text-xs shadow-2xl shadow-red-200 hover:scale-[1.02] transition-all active:scale-95">
+                          <Plus size={20} strokeWidth={4} /> Draw New Territory
+                        </button>
+
+                        <div className="pt-4 space-y-4">
+                          <div className="flex items-center justify-between px-2">
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Active Corridors ({config.areas.length})</span>
+                            <BarChart3 size={16} className="text-slate-300" />
+                          </div>
+                          {config.areas.map(area => (
+                            <div key={area.id}
+                              onClick={() => focusOnArea(area)}
+                              className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer group flex items-center justify-between ${selectedAreaId === area.id ? 'bg-red-50 border-red-600 shadow-lg' : 'bg-slate-50 border-slate-100 hover:bg-white hover:border-slate-300'}`}>
+                              <div className="flex items-center gap-5">
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveArea(config.areas.indexOf(area), 'up'); }}
+                                    disabled={config.areas.indexOf(area) === 0}
+                                    className="p-1 text-slate-300 hover:text-red-600 disabled:opacity-10"
+                                  >
+                                    <ChevronUp size={16} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveArea(config.areas.indexOf(area), 'down'); }}
+                                    disabled={config.areas.indexOf(area) === config.areas.length - 1}
+                                    className="p-1 text-slate-300 hover:text-red-600 disabled:opacity-10"
+                                  >
+                                    <ChevronDown size={16} />
+                                  </button>
+                                </div>
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${selectedAreaId === area.id ? 'bg-red-600 text-white shadow-xl shadow-red-100' : 'bg-white text-slate-400 border border-slate-100'}`}>
+                                  <Navigation size={20} className={selectedAreaId === area.id ? '' : 'rotate-45'} />
+                                </div>
+                                <div>
+                                  <h5 className={`font-black uppercase text-base leading-none mb-1 ${selectedAreaId === area.id ? 'text-red-600' : 'text-slate-900'}`}>{area.nameAr}</h5>
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{area.nameEn} • {area.fee} LE Fee</p>
+                                </div>
+                              </div>
+                              <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete area?')) syncConfig({ ...config, areas: config.areas.filter(a => a.id !== area.id) }); refreshExistingZones(); }}
+                                className="p-3 text-slate-200 hover:text-red-600 hover:bg-white rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                                <Trash2 size={20} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-10 animate-reveal">
+                        <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-8 shadow-2xl">
+                          <div>
+                            <label className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 block">1. Identity Information</label>
+                            <div className="space-y-4">
+                              <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white font-black outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="Territory Name (EN)" value={newArea.nameEn} onChange={e => setNewArea({ ...newArea, nameEn: e.target.value })} />
+                              <input dir="rtl" className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white font-black font-arabic outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="اسم المنطقة (AR)" value={newArea.nameAr} onChange={e => setNewArea({ ...newArea, nameAr: e.target.value })} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 block">2. Pricing Rules</label>
+                            <div className="relative">
+                              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/30 font-black text-xs">LE</div>
+                              <input type="number" className="w-full bg-white/5 border border-white/10 p-4 pl-12 rounded-2xl text-white font-black outline-none focus:border-red-600 transition-all placeholder:text-white/20" placeholder="Flat Delivery Fee" value={newArea.fee || ''} onChange={e => setNewArea({ ...newArea, fee: Number(e.target.value) })} />
+                            </div>
+                          </div>
+                          <div className="pt-4 border-t border-white/10 space-y-4">
+                            <p className="text-[9px] font-black text-white/40 uppercase text-center italic tracking-widest">Click 3 or more points on the map to define boundaries</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <button onClick={() => { setDrawingMode(false); setCurrentPolygonPoints([]); ghostLayerRef.current?.clearLayers(); }}
+                                className="bg-white/5 text-white/60 font-black py-4 rounded-2xl hover:bg-white/10 transition-all uppercase text-[10px] tracking-widest">Discard</button>
+                              <button disabled={currentPolygonPoints.length < 3 || !newArea.nameEn || !newArea.nameAr}
+                                onClick={() => {
+                                  syncConfig({
+                                    ...config,
+                                    areas: [...(config.areas || []), { id: 'a' + Date.now(), ...newArea, points: currentPolygonPoints } as Area]
+                                  });
+                                  setDrawingMode(false);
+                                  setCurrentPolygonPoints([]);
+                                  setNewArea({ nameEn: '', nameAr: '', fee: 0 }); // Reset form
+                                  refreshExistingZones();
+                                }}
+                                className="bg-red-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-red-900/40 transition-all uppercase text-[10px] tracking-widest disabled:opacity-20 flex items-center justify-center gap-2">
+                                <Check size={16} strokeWidth={4} /> Save Zone
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-8 bg-red-50 rounded-[3rem] border border-red-100 flex items-start gap-4">
+                          <Info size={24} className="text-red-600 shrink-0" />
+                          <p className="text-[11px] font-bold text-red-900 leading-relaxed uppercase">The system uses Geofencing technology. Only orders placed inside these boundaries will be accepted at these rates.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 relative bg-slate-200 rounded-[4.5rem] overflow-hidden border-[10px] border-white shadow-2xl shadow-slate-200 group">
+                    <div id="admin-logistics-map" className="absolute inset-0 w-full h-full"></div>
+
+                    {drawingMode && (
+                      <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20 bg-white/95 backdrop-blur-md px-10 py-5 rounded-[2.5rem] shadow-2xl border-4 border-red-600 flex items-center gap-6 animate-reveal">
+                        <div className="w-10 h-10 bg-red-600 text-white rounded-full flex items-center justify-center font-black animate-bounce">{currentPolygonPoints.length}</div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-slate-900 uppercase leading-none mb-1">Point Capturing Mode</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mark territory on the satellite grid</span>
+                        </div>
+                        <button onClick={() => setCurrentPolygonPoints(prev => prev.slice(0, -1))} className="p-3 bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-600 rounded-2xl transition-all">
+                          <RotateCcw size={20} />
+                        </button>
+                      </div>
+                    )}
+
+                    {!drawingMode && (
+                      <div className="absolute bottom-10 right-10 z-20 flex flex-col gap-3">
+                        <button onClick={() => adminMapRef.current?.setView([30.0444, 31.2357], 11)} className="bg-white p-4 rounded-2xl shadow-2xl text-slate-900 hover:text-red-600 transition-all active:scale-90 border border-slate-100">
+                          <MapPin size={28} />
+                        </button>
+                        <button onClick={() => setDrawingMode(true)} className="bg-red-600 text-white p-4 rounded-2xl shadow-2xl hover:bg-slate-900 transition-all active:scale-90 shadow-red-200">
+                          <Plus size={28} strokeWidth={4} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
+            </div>
           </div>
-        </div>
 
-        {isProductFormOpen && editingProduct && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
-            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-3xl" onClick={() => setIsProductFormOpen(false)} />
-            <form onSubmit={handleSaveProduct} className="relative bg-white w-full max-w-4xl rounded-[4rem] p-12 shadow-2xl animate-scale-up space-y-12 overflow-y-auto max-h-[90vh] no-scrollbar border-[12px] border-white">
-              <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 py-6 border-b-4 border-slate-50"><h3 className="text-4xl font-black brand-font text-slate-900 uppercase leading-none">Manage Product</h3><button type="button" onClick={() => setIsProductFormOpen(false)} className="text-slate-300 hover:text-red-600 transition-all"><X size={48} /></button></div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                <div className="md:col-span-1">
-                  <label className={labelStyle}>Visual Asset</label>
-                  <div onClick={() => productFileInputRef.current?.click()} className="relative w-full aspect-square border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50 overflow-hidden hover:border-red-600 shadow-inner group">
-                    {editingProduct.image ? <img src={editingProduct.image} className="h-full w-full object-cover group-hover:scale-110 transition-transform" /> : <Upload size={64} className="text-slate-200" />}
-                    <input type="file" ref={productFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'product')} />
-                  </div>
-                </div>
-                <div className="md:col-span-2 space-y-10">
-                  <div className="grid grid-cols-2 gap-8">
-                    <div><label className={labelStyle}>Name (EN)</label><input className={inputStyle} value={editingProduct.name} onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })} required /></div>
-                    <div><label className={labelStyle}>الاسم (AR)</label><input dir="rtl" className={inputStyle + " font-arabic font-black"} value={editingProduct.nameAr} onChange={e => setEditingProduct({ ...editingProduct, nameAr: e.target.value })} required /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-8">
-                    <div><label className={labelStyle}>Selling Price (LE)</label><input type="number" className={inputStyle + " text-3xl font-black text-red-600"} value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} required /></div>
-                    <div><label className={labelStyle}>Instead of (Old Price)</label><input type="number" className={inputStyle + " text-xl text-slate-300 font-bold"} value={editingProduct.originalPrice || ''} placeholder="LE" onChange={e => setEditingProduct({ ...editingProduct, originalPrice: Number(e.target.value) })} /></div>
-                  </div>
-                  <div><label className={labelStyle}>Category</label><select className={inputStyle} value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}>{config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn}</option>)}</select></div>
-                </div>
-              </div>
-
-              {/* TAG ASSIGNMENT SECTION */}
-              <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-slate-100 space-y-6">
-                <div className="flex items-center gap-4">
-                  <TagIcon size={24} className="text-red-600" />
-                  <h4 className="text-lg font-black brand-font uppercase tracking-tight text-slate-900">Product Labels & Badges</h4>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {config.tags.map(tag => {
-                    const isActive = editingProduct.tags?.includes(tag.nameEn);
-                    return (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => toggleProductTag(tag.nameEn)}
-                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border-2 ${isActive ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-200 scale-105' : 'bg-white border-slate-200 text-slate-400 hover:border-red-600 hover:text-red-600'}`}
-                      >
-                        {isActive && <CheckCircle2 size={14} />}
-                        {tag.nameEn}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2">Items tagged with these labels will show up when customers use the filter menu.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t-2 border-slate-50">
-                <div><label className={labelStyle}>Description (EN)</label><textarea className={inputStyle + " h-32 resize-none font-bold"} value={editingProduct.description} onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })} /></div>
-                <div><label className={labelStyle}>الوصف (AR)</label><textarea dir="rtl" className={inputStyle + " h-32 resize-none font-arabic font-black"} value={editingProduct.descriptionAr} onChange={e => setEditingProduct({ ...editingProduct, descriptionAr: e.target.value })} /></div>
-              </div>
-              <div className="flex flex-wrap items-center gap-10 p-10 bg-slate-50 rounded-[3rem] border-4 border-white shadow-inner">
-                <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.isSpicy} onChange={e => setEditingProduct({ ...editingProduct, isSpicy: e.target.checked })} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">🔥 Hot & Spicy Item</span></label>
-                <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.spicinessOption} onChange={e => setEditingProduct({ ...editingProduct, spicinessOption: e.target.checked })} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">🍗 Allow Customer Choice</span></label>
-
-                {(editingProduct.category === 'sandwiches' || editingProduct.category === 'sides') && (
-                  <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.hasSizes} onChange={e => {
-                    const checked = e.target.checked;
-                    let defaultSizes: ProductSize[] = [];
-
-                    if (checked) {
-                      if (editingProduct.category === 'sides') {
-                        defaultSizes = [
-                          { id: 'medium', nameEn: 'Medium', nameAr: 'وسط', price: editingProduct.price || 0 },
-                          { id: 'large', nameEn: 'Large', nameAr: 'كبير', price: Math.round((editingProduct.price || 0) * 1.4) }
-                        ];
-                      } else {
-                        defaultSizes = [
-                          { id: 'normal', nameEn: 'Normal', nameAr: 'نورمال', price: editingProduct.price || 0 },
-                          { id: 'duo', nameEn: 'Duo', nameAr: 'ديو', price: Math.round((editingProduct.price || 0) * 1.5) },
-                          { id: 'triple', nameEn: 'Triple', nameAr: 'تريبل', price: Math.round((editingProduct.price || 0) * 2) }
-                        ];
-                      }
-                    }
-
-                    setEditingProduct({ ...editingProduct, hasSizes: checked, sizes: checked ? defaultSizes : [] });
-                  }} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">📏 Multi-Size Options</span></label>
-                )}
-              </div>
-
-              {/* Modifiers / Extras Section */}
-              <div className="p-10 bg-slate-50 rounded-[3rem] border-2 border-slate-100 space-y-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Plus size={24} className="text-red-600" />
-                    <h4 className="text-lg font-black brand-font uppercase tracking-tight text-slate-900">Customization Extras</h4>
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      const newExtras = [...(editingProduct.extras || []), { id: 'm_'+Date.now(), nameEn: '', nameAr: '', price: 0 }];
-                      setEditingProduct({...editingProduct, extras: newExtras});
-                    }}
-                    className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                  >
-                    + Add Extra
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                  {(editingProduct.extras || []).map((mod, idx) => (
-                    <div key={mod.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 items-end">
-                      <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">Name EN</label><input className={inputStyle + " h-10 text-xs"} value={mod.nameEn} onChange={e => {
-                        const newExtras = [...(editingProduct.extras || [])];
-                        newExtras[idx].nameEn = e.target.value;
-                        setEditingProduct({...editingProduct, extras: newExtras});
-                      }} /></div>
-                      <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">الاسم AR</label><input dir="rtl" className={inputStyle + " h-10 text-xs font-arabic"} value={mod.nameAr} onChange={e => {
-                        const newExtras = [...(editingProduct.extras || [])];
-                        newExtras[idx].nameAr = e.target.value;
-                        setEditingProduct({...editingProduct, extras: newExtras});
-                      }} /></div>
-                      <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">Price</label><input type="number" className={inputStyle + " h-10 text-xs"} value={mod.price} onChange={e => {
-                        const newExtras = [...(editingProduct.extras || [])];
-                        newExtras[idx].price = Number(e.target.value);
-                        setEditingProduct({...editingProduct, extras: newExtras});
-                      }} /></div>
-                      <div className="md:col-span-1 flex justify-end"><button type="button" onClick={() => {
-                        const newExtras = editingProduct.extras?.filter((_, i) => i !== idx);
-                        setEditingProduct({...editingProduct, extras: newExtras});
-                      }} className="p-2 text-red-500 hover:text-red-700 bg-red-50 rounded-lg"><X size={20} /></button></div>
+          {isProductFormOpen && editingProduct && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-3xl" onClick={() => setIsProductFormOpen(false)} />
+              <form onSubmit={handleSaveProduct} className="relative bg-white w-full max-w-4xl rounded-[4rem] p-12 shadow-2xl animate-scale-up space-y-12 overflow-y-auto max-h-[90vh] no-scrollbar border-[12px] border-white">
+                <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 py-6 border-b-4 border-slate-50"><h3 className="text-4xl font-black brand-font text-slate-900 uppercase leading-none">Manage Product</h3><button type="button" onClick={() => setIsProductFormOpen(false)} className="text-slate-300 hover:text-red-600 transition-all"><X size={48} /></button></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                  <div className="md:col-span-1">
+                    <label className={labelStyle}>Visual Asset</label>
+                    <div onClick={() => productFileInputRef.current?.click()} className="relative w-full aspect-square border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50 overflow-hidden hover:border-red-600 shadow-inner group">
+                      {editingProduct.image ? <img src={editingProduct.image} className="h-full w-full object-cover group-hover:scale-110 transition-transform" /> : <Upload size={64} className="text-slate-200" />}
+                      <input type="file" ref={productFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'product')} />
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {editingProduct.hasSizes && (
-                <div className="bg-slate-900 p-10 rounded-[3rem] space-y-8 animate-reveal">
-                  <div className="flex items-center gap-4 text-white">
-                    <Layers size={24} className="text-red-600" />
-                    <h4 className="text-lg font-black brand-font uppercase tracking-tight">Size Variance Pricing</h4>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {editingProduct.sizes?.map((size, idx) => (
-                      <div key={size.id} className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] space-y-4">
-                        <div className="flex justify-between items-center text-white/50 text-[10px] font-black uppercase tracking-widest">
-                          <span>{size.nameEn}</span>
-                          <span className="font-arabic">{size.nameAr}</span>
-                        </div>
-                        <div className="relative">
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-black text-xs">LE</div>
-                          <input
-                            type="number"
-                            className="w-full bg-white/10 border border-white/10 p-4 pl-10 rounded-2xl text-white font-black outline-none focus:border-red-600"
-                            value={size.price}
-                            onChange={e => {
-                              const newSizes = [...(editingProduct.sizes || [])];
-                              newSizes[idx].price = Number(e.target.value);
-                              setEditingProduct({ ...editingProduct, sizes: newSizes });
-                            }}
-                          />
-                        </div>
+                  <div className="md:col-span-2 space-y-10">
+                    <div className="grid grid-cols-2 gap-8">
+                      <div><label className={labelStyle}>Name (EN)</label><input className={inputStyle} value={editingProduct.name} onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })} required /></div>
+                      <div><label className={labelStyle}>الاسم (AR)</label><input dir="rtl" className={inputStyle + " font-arabic font-black"} value={editingProduct.nameAr} onChange={e => setEditingProduct({ ...editingProduct, nameAr: e.target.value })} required /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-8">
+                      <div><label className={labelStyle}>Selling Price (LE)</label><input type="number" className={inputStyle + " text-3xl font-black text-red-600"} value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} required /></div>
+                      <div><label className={labelStyle}>Instead of (Old Price)</label><input type="number" className={inputStyle + " text-xl text-slate-300 font-bold"} value={editingProduct.originalPrice || ''} placeholder="LE" onChange={e => setEditingProduct({ ...editingProduct, originalPrice: Number(e.target.value) })} /></div>
+                    </div>
+                    <div><label className={labelStyle}>Category</label><select className={inputStyle} value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}>{config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn}</option>)}</select></div>
+                  </div>
+                </div>
+
+                {/* TAG ASSIGNMENT SECTION */}
+                <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-slate-100 space-y-6">
+                  <div className="flex items-center gap-4">
+                    <TagIcon size={24} className="text-red-600" />
+                    <h4 className="text-lg font-black brand-font uppercase tracking-tight text-slate-900">Product Labels & Badges</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {config.tags.map(tag => {
+                      const isActive = editingProduct.tags?.includes(tag.nameEn);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleProductTag(tag.nameEn)}
+                          className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border-2 ${isActive ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-200 scale-105' : 'bg-white border-slate-200 text-slate-400 hover:border-red-600 hover:text-red-600'}`}
+                        >
+                          {isActive && <CheckCircle2 size={14} />}
+                          {tag.nameEn}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-2">Items tagged with these labels will show up when customers use the filter menu.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t-2 border-slate-50">
+                  <div><label className={labelStyle}>Description (EN)</label><textarea className={inputStyle + " h-32 resize-none font-bold"} value={editingProduct.description} onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })} /></div>
+                  <div><label className={labelStyle}>الوصف (AR)</label><textarea dir="rtl" className={inputStyle + " h-32 resize-none font-arabic font-black"} value={editingProduct.descriptionAr} onChange={e => setEditingProduct({ ...editingProduct, descriptionAr: e.target.value })} /></div>
+                </div>
+                <div className="flex flex-wrap items-center gap-10 p-10 bg-slate-50 rounded-[3rem] border-4 border-white shadow-inner">
+                  <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.isSpicy} onChange={e => setEditingProduct({ ...editingProduct, isSpicy: e.target.checked })} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">🔥 Hot & Spicy Item</span></label>
+                  <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.spicinessOption} onChange={e => setEditingProduct({ ...editingProduct, spicinessOption: e.target.checked })} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">🍗 Allow Customer Choice</span></label>
+
+                  {(editingProduct.category === 'sandwiches' || editingProduct.category === 'sides') && (
+                    <label className="flex items-center gap-5 text-sm font-black uppercase cursor-pointer group"><input type="checkbox" checked={editingProduct.hasSizes} onChange={e => {
+                      const checked = e.target.checked;
+                      let defaultSizes: ProductSize[] = [];
+
+                      if (checked) {
+                        if (editingProduct.category === 'sides') {
+                          defaultSizes = [
+                            { id: 'medium', nameEn: 'Medium', nameAr: 'وسط', price: editingProduct.price || 0 },
+                            { id: 'large', nameEn: 'Large', nameAr: 'كبير', price: Math.round((editingProduct.price || 0) * 1.4) }
+                          ];
+                        } else {
+                          defaultSizes = [
+                            { id: 'normal', nameEn: 'Normal', nameAr: 'نورمال', price: editingProduct.price || 0 },
+                            { id: 'duo', nameEn: 'Duo', nameAr: 'ديو', price: Math.round((editingProduct.price || 0) * 1.5) },
+                            { id: 'triple', nameEn: 'Triple', nameAr: 'تريبل', price: Math.round((editingProduct.price || 0) * 2) }
+                          ];
+                        }
+                      }
+
+                      setEditingProduct({ ...editingProduct, hasSizes: checked, sizes: checked ? defaultSizes : [] });
+                    }} className="w-8 h-8 rounded-xl accent-red-600" /> <span className="group-hover:text-red-600">📏 Multi-Size Options</span></label>
+                  )}
+                </div>
+
+                {/* Modifiers / Extras Section */}
+                <div className="p-10 bg-slate-50 rounded-[3rem] border-2 border-slate-100 space-y-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <Plus size={24} className="text-red-600" />
+                      <h4 className="text-lg font-black brand-font uppercase tracking-tight text-slate-900">Customization Extras</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newExtras = [...(editingProduct.extras || []), { id: 'm_' + Date.now(), nameEn: '', nameAr: '', price: 0 }];
+                        setEditingProduct({ ...editingProduct, extras: newExtras });
+                      }}
+                      className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                    >
+                      + Add Extra
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {(editingProduct.extras || []).map((mod, idx) => (
+                      <div key={mod.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 items-end">
+                        <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">Name EN</label><input className={inputStyle + " h-10 text-xs"} value={mod.nameEn} onChange={e => {
+                          const newExtras = [...(editingProduct.extras || [])];
+                          newExtras[idx].nameEn = e.target.value;
+                          setEditingProduct({ ...editingProduct, extras: newExtras });
+                        }} /></div>
+                        <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">الاسم AR</label><input dir="rtl" className={inputStyle + " h-10 text-xs font-arabic"} value={mod.nameAr} onChange={e => {
+                          const newExtras = [...(editingProduct.extras || [])];
+                          newExtras[idx].nameAr = e.target.value;
+                          setEditingProduct({ ...editingProduct, extras: newExtras });
+                        }} /></div>
+                        <div className="md:col-span-1"><label className="text-[9px] font-black text-slate-400 uppercase mb-1 block">Price</label><input type="number" className={inputStyle + " h-10 text-xs"} value={mod.price} onChange={e => {
+                          const newExtras = [...(editingProduct.extras || [])];
+                          newExtras[idx].price = Number(e.target.value);
+                          setEditingProduct({ ...editingProduct, extras: newExtras });
+                        }} /></div>
+                        <div className="md:col-span-1 flex justify-end"><button type="button" onClick={() => {
+                          const newExtras = editingProduct.extras?.filter((_, i) => i !== idx);
+                          setEditingProduct({ ...editingProduct, extras: newExtras });
+                        }} className="p-2 text-red-500 hover:text-red-700 bg-red-50 rounded-lg"><X size={20} /></button></div>
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-2">When enabled, these prices will override the base price when selected by the customer.</p>
                 </div>
-              )}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-10 font-black uppercase text-2xl tracking-widest bg-slate-900 text-white rounded-[3rem] shadow-2xl hover:bg-red-600 transition-all flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? <Loader2 className="animate-spin" size={32} /> : <Save size={32} />}
-                {loading ? 'SAVING TO CLOUD...' : 'COMMIT TO LIVE MENU'}
-              </button>
-            </form>
-          </div>
-        )}
 
-        {isBannerFormOpen && editingBanner && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
-            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl" onClick={() => setIsBannerFormOpen(false)} />
-            <form onSubmit={handleSaveBanner} className="relative bg-white w-full max-w-4xl rounded-[4rem] p-12 shadow-2xl animate-scale-up space-y-10 border-[12px] border-white overflow-y-auto max-h-[90vh] no-scrollbar">
-              <div className="flex justify-between items-center mb-4 py-6 border-b-4 border-slate-50"><h3 className="text-4xl font-black brand-font text-slate-900 uppercase leading-none">Slider Offer Setup</h3><button type="button" onClick={() => setIsBannerFormOpen(false)} className="text-slate-300 hover:text-red-600 transition-all"><X size={48} /></button></div>
-              <div className="space-y-4"><label className={labelStyle}>Banner Image (PNG Preferred)</label><div onClick={() => bannerFileInputRef.current?.click()} className="relative w-full h-72 border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center cursor-pointer bg-slate-50 overflow-hidden hover:border-red-600 shadow-inner group">{editingBanner.image ? <img src={editingBanner.image} className="h-full object-contain p-10 group-hover:scale-105 transition-transform" /> : <Upload size={64} className="text-slate-200" />}<input type="file" ref={bannerFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'banner')} /></div></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6">
-                <div className="space-y-6">
-                   <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                     <div className="flex items-center gap-3 text-blue-800 mb-2">
-                       <Info size={18} />
-                       <span className="text-[10px] font-black uppercase tracking-widest">Image Content Only</span>
-                     </div>
-                     <p className="text-xs font-medium text-blue-600 leading-relaxed">
-                       This slider uses pre-designed images. Any text or prices should be included directly in the image design.
-                     </p>
-                   </div>
-                </div>
-                <div className="space-y-10">
-                  <div>
-                    <label className={labelStyle}>Link to Category</label>
-                    <select 
-                      className={inputStyle + " h-20 text-xl"} 
-                      value={editingBanner.targetCategoryId || ''} 
-                      onChange={e => setEditingBanner({ ...editingBanner, targetCategoryId: e.target.value })}
-                    >
-                      <option value="">No Link (Visual Only)</option>
-                      {config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn} / {c.nameAr}</option>)}
-                    </select>
-                    <p className="mt-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">When a customer clicks this banner, they will be scrolled to this category.</p>
+                {editingProduct.hasSizes && (
+                  <div className="bg-slate-900 p-10 rounded-[3rem] space-y-8 animate-reveal">
+                    <div className="flex items-center gap-4 text-white">
+                      <Layers size={24} className="text-red-600" />
+                      <h4 className="text-lg font-black brand-font uppercase tracking-tight">Size Variance Pricing</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {editingProduct.sizes?.map((size, idx) => (
+                        <div key={size.id} className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] space-y-4">
+                          <div className="flex justify-between items-center text-white/50 text-[10px] font-black uppercase tracking-widest">
+                            <span>{size.nameEn}</span>
+                            <span className="font-arabic">{size.nameAr}</span>
+                          </div>
+                          <div className="relative">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-black text-xs">LE</div>
+                            <input
+                              type="number"
+                              className="w-full bg-white/10 border border-white/10 p-4 pl-10 rounded-2xl text-white font-black outline-none focus:border-red-600"
+                              value={size.price}
+                              onChange={e => {
+                                const newSizes = [...(editingProduct.sizes || [])];
+                                newSizes[idx].price = Number(e.target.value);
+                                setEditingProduct({ ...editingProduct, sizes: newSizes });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-2">When enabled, these prices will override the base price when selected by the customer.</p>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-10 font-black uppercase text-2xl tracking-widest bg-slate-900 text-white rounded-[3rem] shadow-2xl hover:bg-red-600 transition-all flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={32} /> : <Save size={32} />}
+                  {loading ? 'SAVING TO CLOUD...' : 'COMMIT TO LIVE MENU'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {isBannerFormOpen && editingBanner && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-xl" onClick={() => setIsBannerFormOpen(false)} />
+              <form onSubmit={handleSaveBanner} className="relative bg-white w-full max-w-4xl rounded-[4rem] p-12 shadow-2xl animate-scale-up space-y-10 border-[12px] border-white overflow-y-auto max-h-[90vh] no-scrollbar">
+                <div className="flex justify-between items-center mb-4 py-6 border-b-4 border-slate-50"><h3 className="text-4xl font-black brand-font text-slate-900 uppercase leading-none">Slider Offer Setup</h3><button type="button" onClick={() => setIsBannerFormOpen(false)} className="text-slate-300 hover:text-red-600 transition-all"><X size={48} /></button></div>
+                <div className="space-y-4"><label className={labelStyle}>Banner Image (PNG Preferred)</label><div onClick={() => bannerFileInputRef.current?.click()} className="relative w-full h-72 border-4 border-dashed rounded-[3rem] flex flex-col items-center justify-center cursor-pointer bg-slate-50 overflow-hidden hover:border-red-600 shadow-inner group">{editingBanner.image ? <img src={editingBanner.image} className="h-full object-contain p-10 group-hover:scale-105 transition-transform" /> : <Upload size={64} className="text-slate-200" />}<input type="file" ref={bannerFileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFile(e.target.files[0], 'banner')} /></div></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6">
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
+                      <div className="flex items-center gap-3 text-blue-800 mb-2">
+                        <Info size={18} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Image Content Only</span>
+                      </div>
+                      <p className="text-xs font-medium text-blue-600 leading-relaxed">
+                        This slider uses pre-designed images. Any text or prices should be included directly in the image design.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-10">
+                    <div>
+                      <label className={labelStyle}>Link to Category</label>
+                      <select
+                        className={inputStyle + " h-20 text-xl"}
+                        value={editingBanner.targetCategoryId || ''}
+                        onChange={e => setEditingBanner({ ...editingBanner, targetCategoryId: e.target.value })}
+                      >
+                        <option value="">No Link (Visual Only)</option>
+                        {config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn} / {c.nameAr}</option>)}
+                      </select>
+                      <p className="mt-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">When a customer clicks this banner, they will be scrolled to this category.</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <button type="submit" className="w-full py-10 font-black uppercase text-2xl tracking-[0.4em] bg-slate-900 text-white rounded-[3rem] shadow-2xl hover:bg-red-600 transition-all flex items-center justify-center gap-8 active:scale-95"><Sparkles size={32} /> DEPLOY CAMPAIGN</button>
-            </form>
-          </div>
-        )}
+                <button type="submit" className="w-full py-10 font-black uppercase text-2xl tracking-[0.4em] bg-slate-900 text-white rounded-[3rem] shadow-2xl hover:bg-red-600 transition-all flex items-center justify-center gap-8 active:scale-95"><Sparkles size={32} /> DEPLOY CAMPAIGN</button>
+              </form>
+            </div>
+          )}
 
-        {/* Professional Print Report (Hidden in UI, visible in Print) */}
-        <div id="print-report-root" className="hidden print:block bg-white p-10 font-sans text-slate-900">
-          {/* Smart Print Styles */}
-          <style dangerouslySetInnerHTML={{ __html: `
+          {/* Professional Print Report (Hidden in UI, visible in Print) */}
+          <div id="print-report-root" className="hidden print:block bg-white p-10 font-sans text-slate-900">
+            {/* Smart Print Styles */}
+            <style dangerouslySetInnerHTML={{
+              __html: `
             @media print {
               /* Hide all browser UI elements like headers/footers if possible */
               @page { size: A4; margin: 10mm; }
@@ -1599,103 +1613,103 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
             }
           `}} />
 
-          {/* Report Header */}
-          <div className="flex justify-between items-center border-b-4 border-slate-900 pb-6 mb-8">
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black">CH</div>
-               <div>
+            {/* Report Header */}
+            <div className="flex justify-between items-center border-b-4 border-slate-900 pb-6 mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black">CH</div>
+                <div>
                   <h1 className="text-3xl font-black tracking-tighter uppercase leading-none mb-1">{config.brandNameEn} Analytics</h1>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Official Restaurant Performance Report</p>
-               </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Report Generated</p>
+                <p className="text-sm font-bold">{new Date().toLocaleString('ar-EG')}</p>
+              </div>
             </div>
-            <div className="text-right">
-               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Report Generated</p>
-               <p className="text-sm font-bold">{new Date().toLocaleString('ar-EG')}</p>
-            </div>
-          </div>
 
-          <div className="mb-8">
-             <div className="bg-slate-50 p-6 rounded-2xl border-l-8 border-red-600 mb-8">
+            <div className="mb-8">
+              <div className="bg-slate-50 p-6 rounded-2xl border-l-8 border-red-600 mb-8">
                 <h2 className="text-2xl font-black uppercase mb-1">
                   {filterType === 'day' ? `Daily Summary: ${selectedDate}` : `Monthly Analysis: ${selectedMonth}`}
                 </h2>
                 <p className="text-xs text-slate-500 font-medium italic">This report provides a detailed breakdown of sales and customer activity.</p>
-             </div>
+              </div>
 
-             {/* Key Metrics Grid */}
-             <div className="grid grid-cols-4 gap-4 mb-8">
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-4 gap-4 mb-8">
                 <div className="border border-slate-200 p-4 rounded-xl bg-white">
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Revenue</span>
-                   <span className="text-2xl font-black text-slate-900">{stats.totalRevenue} <small className="text-[10px]">LE</small></span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Revenue</span>
+                  <span className="text-2xl font-black text-slate-900">{stats.totalRevenue} <small className="text-[10px]">LE</small></span>
                 </div>
                 <div className="border border-slate-200 p-4 rounded-xl bg-white">
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Orders</span>
-                   <span className="text-2xl font-black text-slate-900">{stats.totalOrders}</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Orders</span>
+                  <span className="text-2xl font-black text-slate-900">{stats.totalOrders}</span>
                 </div>
                 <div className="border border-slate-200 p-4 rounded-xl bg-white">
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Top Area</span>
-                   <span className="text-lg font-black text-red-600 truncate block">{stats.topArea ? stats.topArea[0] : 'N/A'}</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Top Area</span>
+                  <span className="text-lg font-black text-red-600 truncate block">{stats.topArea ? stats.topArea[0] : 'N/A'}</span>
                 </div>
                 <div className="border border-slate-200 p-4 rounded-xl bg-white">
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Best Seller</span>
-                   <span className="text-lg font-black text-slate-900 truncate block">{stats.topItem ? stats.topItem[0] : 'N/A'}</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Best Seller</span>
+                  <span className="text-lg font-black text-slate-900 truncate block">{stats.topItem ? stats.topItem[0] : 'N/A'}</span>
                 </div>
-             </div>
+              </div>
 
-             {/* Detailed Analytics */}
-             <div className="space-y-8">
+              {/* Detailed Analytics */}
+              <div className="space-y-8">
                 <section>
-                   <h3 className="text-sm font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-lg mb-4">Area Revenue Distribution</h3>
-                   <table className="w-full text-left border-collapse">
-                      <thead>
-                         <tr className="border-b-2 border-slate-200">
-                            <th className="py-2 text-[10px] font-black uppercase">Area</th>
-                            <th className="py-2 text-[10px] font-black uppercase text-center">Orders</th>
-                            <th className="py-2 text-[10px] font-black uppercase text-right">Revenue</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         {Object.entries(stats.areaStats).map(([area, data]) => (
-                            <tr key={area} className="border-b border-slate-100">
-                               <td className="py-3 text-xs font-bold uppercase">{area}</td>
-                               <td className="py-3 text-xs font-medium text-center">{data.count}</td>
-                               <td className="py-3 text-xs font-black text-right">{data.revenue} LE</td>
-                            </tr>
-                         ))}
-                      </tbody>
-                   </table>
+                  <h3 className="text-sm font-black uppercase bg-slate-900 text-white px-4 py-2 rounded-lg mb-4">Area Revenue Distribution</h3>
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-slate-200">
+                        <th className="py-2 text-[10px] font-black uppercase">Area</th>
+                        <th className="py-2 text-[10px] font-black uppercase text-center">Orders</th>
+                        <th className="py-2 text-[10px] font-black uppercase text-right">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(stats.areaStats).map(([area, data]) => (
+                        <tr key={area} className="border-b border-slate-100">
+                          <td className="py-3 text-xs font-bold uppercase">{area}</td>
+                          <td className="py-3 text-xs font-medium text-center">{data.count}</td>
+                          <td className="py-3 text-xs font-black text-right">{data.revenue} LE</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </section>
 
                 <section>
-                   <h3 className="text-sm font-black uppercase bg-slate-100 text-slate-900 px-4 py-2 rounded-lg mb-4">Top Performing Products</h3>
-                   <table className="w-full text-left border-collapse">
-                      <thead>
-                         <tr className="border-b-2 border-slate-200">
-                            <th className="py-2 text-[10px] font-black uppercase">Product Name</th>
-                            <th className="py-2 text-[10px] font-black uppercase text-right">Items Sold</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         {Object.entries(stats.topItem ? { [stats.topItem[0]]: stats.topItem[1] } : {}).map(([name, qty]) => (
-                            <tr key={name} className="border-b border-slate-50">
-                               <td className="py-3 text-xs font-bold uppercase">{name}</td>
-                               <td className="py-3 text-xs font-black text-right">{qty} Units</td>
-                            </tr>
-                         ))}
-                      </tbody>
-                   </table>
+                  <h3 className="text-sm font-black uppercase bg-slate-100 text-slate-900 px-4 py-2 rounded-lg mb-4">Top Performing Products</h3>
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-slate-200">
+                        <th className="py-2 text-[10px] font-black uppercase">Product Name</th>
+                        <th className="py-2 text-[10px] font-black uppercase text-right">Items Sold</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(stats.topItem ? { [stats.topItem[0]]: stats.topItem[1] } : {}).map(([name, qty]) => (
+                        <tr key={name} className="border-b border-slate-50">
+                          <td className="py-3 text-xs font-bold uppercase">{name}</td>
+                          <td className="py-3 text-xs font-black text-right">{qty} Units</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </section>
-             </div>
-          </div>
+              </div>
+            </div>
 
-          {/* Footer Signature */}
-          <div className="mt-12 pt-6 border-t border-slate-100 flex justify-between items-center italic">
-             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{config.brandNameEn} Restaurant Management System • Confidential Report</p>
-             <p className="text-[9px] font-bold text-slate-400">Page 1 of 1</p>
+            {/* Footer Signature */}
+            <div className="mt-12 pt-6 border-t border-slate-100 flex justify-between items-center italic">
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{config.brandNameEn} Restaurant Management System • Confidential Report</p>
+              <p className="text-[9px] font-bold text-slate-400">Page 1 of 1</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };

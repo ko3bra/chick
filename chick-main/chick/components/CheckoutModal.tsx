@@ -331,9 +331,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
-    const newOrderId = 'CH-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    // Generate a more organized ID: #YYMMDD-XXXX
+    const now = new Date();
+    const dateStr = now.toISOString().slice(2, 10).replace(/-/g, '');
+    const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const newOrderId = `#${dateStr}-${randomStr}`;
     setOrderId(newOrderId);
-
+ 
     // 1. Cloud Save enabled
     try {
       const orderItems = cartItems.map(item => ({
@@ -346,7 +350,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         selectedSpiciness: item.selectedSpiciness,
         selectedExtras: item.selectedExtras
       }));
-
+ 
       const { error: saveError } = await supabase.from('orders').insert([{
         id: newOrderId,
         customer_name: details.name,
@@ -355,7 +359,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         address: details.address,
         delivery_address: details.address,
         area: isAr ? selectedArea?.nameAr : selectedArea?.nameEn,
-        location: details.serviceType === 'delivery' ? { ...location, deliveryFee: currentFee, address: details.address } : null,
+        location: { 
+          ...location, 
+          deliveryFee: currentFee, 
+          address: details.address,
+          service_type: details.serviceType // Storing inside location for safety
+        },
         items: orderItems,
         order_details: orderItems,
         total_price: finalTotal,
