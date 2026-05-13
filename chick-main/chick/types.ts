@@ -160,11 +160,14 @@ export interface StoredOrder {
   phone: string;
   address: string;
   area: string;
-  location: { lat: number; lng: number };
+  location: any;
   items: CartItem[];
   totalPrice: number;
   status: 'pending' | 'completed' | 'cancelled';
   createdAt: string;
   serviceType: ServiceType;
   scheduledTime?: string;
+  promoCode?: string;
+  discount?: number;
+  paymentMethod?: string;
 }

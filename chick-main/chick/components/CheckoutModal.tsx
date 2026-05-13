@@ -355,20 +355,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         id: newOrderId,
         customer_name: details.name,
         phone: details.phone,
-        customer_phone: details.phone,
         address: details.address,
-        delivery_address: details.address,
         area: isAr ? selectedArea?.nameAr : selectedArea?.nameEn,
         location: { 
           ...location, 
           deliveryFee: currentFee, 
           address: details.address,
-          service_type: details.serviceType // Storing inside location for safety
+          service_type: details.serviceType
         },
         items: orderItems,
-        order_details: orderItems,
         total_price: finalTotal,
         status: 'pending',
+        service_type: details.serviceType,
+        scheduled_time: isScheduling ? scheduledTime : 'Now',
+        promo_code: appliedPromo?.code,
+        discount: discountAmount,
         payment_method: paymentMethod
       }]);
 

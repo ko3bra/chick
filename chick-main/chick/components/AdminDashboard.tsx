@@ -7,7 +7,8 @@ import {
   ChevronRight, ChevronUp, ChevronDown, Phone, MessageSquare, Globe, Facebook, Instagram, Upload, FileImage,
   RotateCcw, Layers, Hash, Check, Trash, Info, Key, MapPin,
   Palette, Share2, BarChart3, ListOrdered, AlignLeft, Eye, Tag as TagIcon,
-  ArrowRight, MousePointer2, Navigation, CheckCircle2, Bell, Loader2, Download, FileSpreadsheet
+  ArrowRight, MousePointer2, Navigation, CheckCircle2, Bell, Loader2, Download, FileSpreadsheet,
+  ShoppingBag, Utensils
 } from 'lucide-react';
 import { Product, SiteConfig, Area, HeroBanner, TagConfig, CategoryConfig, OrderDetails, StoredOrder, ProductSize } from '../types';
 import { supabase } from '../lib/supabase';
@@ -83,7 +84,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
             totalPrice: o.total_price,
             status: o.status,
             createdAt: o.created_at,
-            serviceType: o.service_type || locationObj.service_type || 'delivery'
+            serviceType: o.service_type || locationObj.service_type || 'delivery',
+            scheduledTime: o.scheduled_time || 'Now',
+            promoCode: o.promo_code,
+            discount: o.discount || 0,
+            paymentMethod: o.payment_method || 'Cash'
           };
         }));
 
@@ -126,7 +131,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
           totalPrice: newOrder.total_price,
           status: newOrder.status,
           createdAt: newOrder.created_at,
-          serviceType: newOrder.service_type || locationObj.service_type || 'delivery'
+          serviceType: newOrder.service_type || locationObj.service_type || 'delivery',
+          scheduledTime: newOrder.scheduled_time || 'Now',
+          promoCode: newOrder.promo_code,
+          discount: newOrder.discount || 0,
+          paymentMethod: newOrder.payment_method || 'Cash'
         }, ...prev]);
       })
       .subscribe();
@@ -657,6 +666,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                                     {order.serviceType === 'delivery' ? 'DELIVERY' : order.serviceType === 'pickup' ? 'PICKUP' : 'DINE-IN'}
                                   </span>
                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleString()}</span>
+                                  {order.paymentMethod && (
+                                    <span className="text-[10px] font-black px-3 py-1 bg-slate-900 text-white rounded-full uppercase tracking-widest flex items-center gap-2">
+                                      <Key size={10} /> {order.paymentMethod}
+                                    </span>
+                                  )}
+                                  {order.scheduledTime && order.scheduledTime !== 'Now' && (
+                                    <span className="text-[10px] font-black px-3 py-1 bg-orange-100 text-orange-600 rounded-full uppercase tracking-widest flex items-center gap-2">
+                                      <Bell size={10} /> {order.scheduledTime}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -674,6 +693,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                                 <span className="text-[10px] font-black uppercase tracking-widest font-arabic">{order.status === 'pending' ? 'قيد التنفيذ' : order.status === 'completed' ? 'تم التوصيل' : 'ملغي'}</span>
                               </div>
                             </div>
+                            {order.promoCode && (
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
+                                  <TagIcon size={12} /> {order.promoCode}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">-{order.discount} LE OFF</span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -710,17 +737,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                               </h5>
                               <div className="bg-slate-50 rounded-3xl p-6 space-y-4">
                                 {order.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between items-center text-sm">
-                                    <div className="flex items-center gap-3">
-                                      <span className="w-7 h-7 bg-white rounded-lg flex items-center justify-center font-black text-[10px] border border-slate-100">{item.quantity}x</span>
-                                      <span className="font-bold text-slate-900">{item.name}</span>
-                                      {item.selectedSpiciness && (
-                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase border ${item.selectedSpiciness === 'Spicy' ? 'border-red-200 text-red-600 bg-red-50' : 'border-slate-200 text-slate-400 bg-white'}`}>
-                                          {item.selectedSpiciness}
-                                        </span>
-                                      )}
+                                  <div key={idx} className="space-y-2 border-b border-slate-100 last:border-0 pb-4 last:pb-0">
+                                    <div className="flex justify-between items-center text-sm">
+                                      <div className="flex items-center gap-3">
+                                        <span className="w-7 h-7 bg-white rounded-lg flex items-center justify-center font-black text-[10px] border border-slate-100">{item.quantity}x</span>
+                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                        {item.selectedSpiciness && (
+                                          <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase border ${item.selectedSpiciness === 'Spicy' ? 'border-red-200 text-red-600 bg-red-50' : 'border-slate-200 text-slate-400 bg-white'}`}>
+                                            {item.selectedSpiciness}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="font-black text-slate-400">{item.price * item.quantity} LE</span>
                                     </div>
-                                    <span className="font-black text-slate-400">{item.price * item.quantity} LE</span>
+                                    {item.selectedExtras && item.selectedExtras.length > 0 && (
+                                      <div className="pl-10 flex flex-wrap gap-2">
+                                        {item.selectedExtras.map((extra: any, eIdx: number) => (
+                                          <span key={eIdx} className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md uppercase">
+                                            + {extra.nameEn} ({extra.price} LE)
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
