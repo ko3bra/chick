@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);ث
   const [serviceType, setServiceType] = useState<ServiceType>('delivery');
   const [promoCode, setPromoCode] = useState<PromoCode | null>(null);
   const [scheduledTime, setScheduledTime] = useState<string | null>(null);

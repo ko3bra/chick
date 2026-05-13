@@ -336,30 +336,31 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     // 1. Cloud Save enabled
     try {
+      const orderItems = cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        nameAr: item.nameAr,
+        quantity: item.quantity,
+        price: item.price,
+        selectedSize: item.selectedSize,
+        selectedSpiciness: item.selectedSpiciness,
+        selectedExtras: item.selectedExtras
+      }));
+
       const { error: saveError } = await supabase.from('orders').insert([{
         id: newOrderId,
         customer_name: details.name,
         phone: details.phone,
+        customer_phone: details.phone,
         address: details.address,
+        delivery_address: details.address,
         area: isAr ? selectedArea?.nameAr : selectedArea?.nameEn,
         location: details.serviceType === 'delivery' ? { ...location, deliveryFee: currentFee, address: details.address } : null,
-        items: cartItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          nameAr: item.nameAr,
-          quantity: item.quantity,
-          price: item.price,
-          selectedSize: item.selectedSize,
-          selectedSpiciness: item.selectedSpiciness,
-          selectedExtras: item.selectedExtras
-        })),
+        items: orderItems,
+        order_details: orderItems,
         total_price: finalTotal,
         status: 'pending',
-        service_type: details.serviceType,
-        payment_method: paymentMethod,
-        scheduled_time: isScheduling ? scheduledTime : 'Now',
-        promo_code: appliedPromo?.code,
-        discount: discountAmount
+        payment_method: paymentMethod
       }]);
 
       if (saveError) throw saveError;
