@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { Plus, Flame, CheckCircle, X, Sparkles } from 'lucide-react';
+import { Plus, Flame, CheckCircle, X, Star, ArrowRight } from 'lucide-react';
 import { Product, Language, CategoryConfig, TagConfig } from '../types';
 
 interface MenuSectionProps {
   category: CategoryConfig;
   items: Product[];
-  onAddToCart: (product: Product, spiciness?: 'Normal' | 'Spicy', size?: any, modifiers?: any[]) => void;
+  onAddToCart: (product: Product, spiciness?: 'Normal' | 'Spicy', size?: any, extras?: any[]) => void;
   lang: Language;
   tagsConfig: TagConfig[];
 }
@@ -14,35 +14,50 @@ interface MenuSectionProps {
 const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart, lang, tagsConfig }) => {
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const [showOptionsId, setShowOptionsId] = useState<string | null>(null);
-  const [tempSelection, setTempSelection] = useState<{ size?: any, spiciness?: any, modifiers?: any[] }>({});
+  const [tempSelection, setTempSelection] = useState<{ size?: any, spiciness?: any, extras?: any[] }>({ extras: [] });
 
   const isAr = lang === 'ar';
   const currentItem = items.find(i => i.id === showOptionsId);
 
+  const calculateTotal = () => {
+    if (!currentItem) return 0;
+    const basePrice = tempSelection.size ? tempSelection.size.price : currentItem.price;
+    const extrasPrice = (tempSelection.extras || []).reduce((sum, mod) => sum + mod.price, 0);
+    return basePrice + extrasPrice;
+  };
+
   const handleAddClick = (product: Product) => {
-    if (product.hasSizes || product.spicinessOption || (product.modifiers && product.modifiers.length > 0)) {
-      setTempSelection({ modifiers: [] });
+    if (product.hasSizes || product.spicinessOption || (product.extras && product.extras.length > 0)) {
+      setTempSelection({ extras: [], spiciness: product.spicinessOption ? 'Normal' : undefined });
       setShowOptionsId(product.id);
     } else {
       executeAdd(product);
     }
   };
 
-  const executeAdd = (product: Product, spiciness?: 'Normal' | 'Spicy', size?: any, modifiers?: any[]) => {
-    onAddToCart(product, spiciness, size, modifiers);
-    setAnimatingId(product.id + (spiciness || '') + (size?.id || '') + (modifiers?.length || ''));
+  const executeAdd = (product: Product, spiciness?: 'Normal' | 'Spicy', size?: any, extras?: any[]) => {
+    onAddToCart(product, spiciness, size, extras);
+    setAnimatingId(product.id + (spiciness || '') + (size?.id || '') + (extras?.length || ''));
     setShowOptionsId(null);
-    setTempSelection({});
+    setTempSelection({ extras: [] });
     setTimeout(() => setAnimatingId(null), 800);
   };
 
   return (
     <section id={category.id} className="py-12 scroll-mt-32">
-      <div className="flex items-center gap-6 mb-10">
-        <h2 className="text-4xl font-black brand-font tracking-tight uppercase text-slate-900">
-          {lang === 'en' ? category.nameEn : category.nameAr}
-        </h2>
-        <div className="h-1 flex-1 bg-gradient-to-r from-slate-100 to-transparent rounded-full"></div>
+      <div className="flex flex-col items-center mb-12 text-center">
+         <div className="flex gap-1 mb-4 opacity-90">
+            <Star size={14} className="text-red-600 fill-red-600" />
+            <Star size={14} className="text-red-600 fill-red-600" />
+            <Star size={14} className="text-red-600 fill-red-600" />
+         </div>
+         <div className="flex items-center gap-4 w-full">
+            <div className="h-px flex-1 bg-gradient-to-l from-slate-200 to-transparent"></div>
+            <h2 className="text-3xl md:text-5xl font-black brand-font tracking-tight uppercase text-slate-900 px-4">
+              {lang === 'en' ? category.nameEn : category.nameAr}
+            </h2>
+            <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
+         </div>
       </div>
       
       {showOptionsId && currentItem && (
@@ -57,7 +72,7 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
             
             <div className="mb-8">
               <div className="w-24 h-24 bg-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-200">
-                <Sparkles size={48} className="text-white animate-pulse" fill="currentColor" />
+                <Star size={48} className="text-white animate-pulse" fill="currentColor" />
               </div>
               <h3 className="text-3xl font-black brand-font text-slate-900 uppercase tracking-tight leading-tight">
                 {lang === 'en' ? 'CUSTOMIZE' : 'تخصيص الطلب'}
@@ -110,22 +125,22 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
               )}
 
               {/* Extras Selection */}
-              {currentItem.modifiers && currentItem.modifiers.length > 0 && (
+              {currentItem.extras && currentItem.extras.length > 0 && (
                 <div className="space-y-4">
                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] text-center">
                     {lang === 'en' ? 'Add Extras' : 'إضافات'}
                   </p>
                   <div className="grid grid-cols-1 gap-2">
-                     {currentItem.modifiers?.map(mod => {
-                        const isSelected = tempSelection.modifiers?.some(m => m.id === mod.id);
+                     {currentItem.extras.map(mod => {
+                        const isSelected = tempSelection.extras?.some(m => m.id === mod.id);
                         return (
                           <button 
                             key={mod.id}
                             onClick={() => {
-                               const nextMod = isSelected 
-                                  ? tempSelection.modifiers?.filter(m => m.id !== mod.id)
-                                  : [...(tempSelection.modifiers || []), mod];
-                               setTempSelection({...tempSelection, modifiers: nextMod});
+                               const nextExtras = isSelected 
+                                  ? tempSelection.extras?.filter(m => m.id !== mod.id)
+                                  : [...(tempSelection.extras || []), mod];
+                               setTempSelection({...tempSelection, extras: nextExtras});
                             }}
                             className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-slate-50 border-transparent text-slate-900 hover:bg-slate-100'}`}
                           >
@@ -138,9 +153,14 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
                 </div>
               )}
 
+              <div className="flex flex-col items-center gap-2 pt-4">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lang === 'en' ? 'Total' : 'الإجمالي'}</p>
+                 <p className="text-3xl font-black text-red-600 brand-font">{calculateTotal()} LE</p>
+              </div>
+
               <button 
                 disabled={(currentItem.hasSizes && !tempSelection.size) || (currentItem.spicinessOption && !tempSelection.spiciness)}
-                onClick={() => executeAdd(currentItem, tempSelection.spiciness, tempSelection.size, tempSelection.modifiers)}
+                onClick={() => executeAdd(currentItem, tempSelection.spiciness, tempSelection.size, tempSelection.extras)}
                 className="w-full bg-slate-900 text-white font-black py-6 rounded-[2rem] hover:bg-red-600 active:scale-95 transition-all shadow-2xl disabled:opacity-20 mt-4 uppercase tracking-widest text-xs"
               >
                 {lang === 'en' ? 'ADD TO BASKET' : 'إضافة للطلب'}
@@ -151,7 +171,7 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-8">
-        {items?.map((item) => {
+        {items.map((item) => {
           const isAnimating = animatingId?.startsWith(item.id);
 
           return (
@@ -218,19 +238,20 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
                 <div className="mt-4 md:mt-8 flex gap-1 md:gap-2">
                   <button 
                     onClick={() => handleAddClick(item)}
-                    className={`flex-1 flex items-center justify-center gap-2 md:gap-3 py-2.5 md:py-4 rounded-xl md:rounded-2xl transition-all font-black uppercase tracking-widest text-[9px] md:text-[10px] active:scale-95 shadow-sm ${
-                      isAnimating 
-                      ? 'bg-success border-success text-white shadow-lg' 
-                      : 'bg-slate-50 border-transparent text-slate-900 group-hover:bg-red-600 group-hover:text-white'
+                    className={`flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl shadow-sm btn-add-to-cart ${
+                      isAnimating ? 'bg-success border-success text-white shadow-lg' : ''
                     }`}
                   >
                     {isAnimating ? (
-                      <CheckCircle size={16} md:size={18} />
+                      <div className="flex items-center justify-center gap-2">
+                         <CheckCircle size={20} />
+                         <span className="text-[11px] md:text-xs font-black">{lang === 'en' ? 'Added!' : 'تم الإضافة'}</span>
+                      </div>
                     ) : (
-                      <>
-                        <Plus size={16} md:size={18} strokeWidth={3} />
-                        <span>{lang === 'en' ? 'Add' : 'أضف'}</span>
-                      </>
+                      <div className="flex items-center justify-center gap-2">
+                        <Plus size={20} strokeWidth={4} />
+                        <span className="text-[11px] md:text-xs font-black">{lang === 'en' ? 'Add' : 'أضف'}</span>
+                      </div>
                     )}
                   </button>
                 </div>

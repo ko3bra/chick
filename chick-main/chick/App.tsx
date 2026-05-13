@@ -11,15 +11,17 @@ import Footer from './components/Footer';
 import WhatsAppFloat from './components/WhatsAppFloat';
 import HeroCarousel from './components/HeroCarousel';
 import MobileBottomNav from './components/MobileBottomNav';
-import { getStoredMenu, saveMenuToStorage, getStoredConfig, saveConfigToStorage } from './data/menuData';
+import Logo from './components/Logo';
+import { getStoredMenu, saveMenuToStorage, getStoredConfig, saveConfigToStorage, INITIAL_SITE_CONFIG } from './data/menuData';
 import { Product, CartItem, Language, OrderDetails, SiteConfig, ServiceType, PromoCode } from './types';
 import { supabase } from './lib/supabase';
 // Added Search to the lucide-react imports
-import { ArrowRight, Sparkles, Zap, Tag, Tag as TagIcon, X, Search, Flame } from 'lucide-react';
+import { ArrowRight, Star, Zap, Tag, Tag as TagIcon, X, Search, Flame } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [menu, setMenu] = useState<Product[]>(getStoredMenu());
-  const [config, setConfig] = useState<SiteConfig>(getStoredConfig());
+  const [menu, setMenu] = useState<Product[]>([]);
+  const [config, setConfig] = useState<SiteConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -30,95 +32,164 @@ const App: React.FC = () => {
   const [promoCode, setPromoCode] = useState<PromoCode | null>(null);
   const [scheduledTime, setScheduledTime] = useState<string | null>(null);
 
-  const [activeCategory, setActiveCategory] = useState<string>(config?.layout?.[0]?.id || 'cat_deals');
-  const [lang, setLang] = useState<Language>('ar'); 
+  const [activeCategory, setActiveCategory] = useState<string>('cat_deals');
+  const [lang, setLang] = useState<Language>('ar');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const [showStickyMenu, setShowStickyMenu] = useState(false);
 
   const isAr = lang === 'ar';
 
 
 
 
-  // --- CLEAN DATA FETCHING & REAL-TIME ---
   useEffect(() => {
-    const syncData = async () => {
-      try {
-        // 1. Fetch Menu
-        const { data: menuData } = await supabase.from('menu_items').select('*').order('created_at', { ascending: true });
-        if (menuData && menuData.length > 0) {
-          setMenu(menuData);
-        }
+    const fetchData = async () => {
+      const startTime = Date.now();
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Fetch timeout')), 10000)
+      );
 
-        // 2. Fetch Config
-        const { data: configData } = await supabase.from('site_settings').select('config_data').eq('id', 'active_config').single();
-        if (configData?.config_data) {
-          const fetched = configData.config_data as any;
-          setConfig(prev => ({
-            ...prev,
-            ...fetched,
-            // Fallback to initial values if specific keys are missing in DB
-            hero: fetched.hero || prev.hero,
-            header: fetched.header || prev.header,
-            footer: fetched.footer || prev.footer,
-            theme: fetched.theme || prev.theme,
-            layout: (fetched.layout && fetched.layout.length > 0) ? fetched.layout : prev.layout,
-            tags: (fetched.tags && fetched.tags.length > 0) ? fetched.tags : prev.tags
-          }));
-        }
+      try {
+        await Promise.race([
+          (async () => {
+            // Fetch Menu
+            const { data: menuData, error: menuError } = await supabase
+              .from('menu_items')
+              .select('*')
+              .order('name', { ascending: true });
+
+            if (!menuError && menuData && menuData.length > 0) {
+              const processedMenu = menuData.map((item: any) => {
+                const sizes = typeof item.sizes === 'string' ? JSON.parse(item.sizes) : (item.sizes || []);
+                let extras = typeof item.extras === 'string' ? JSON.parse(item.extras) : (item.extras || []);
+
+                // Fallback to modifiers if extras is empty
+                if ((!extras || extras.length === 0) && item.modifiers) {
+                  extras = typeof item.modifiers === 'string' ? JSON.parse(item.modifiers) : (item.modifiers || []);
+                }
+
+                return {
+                  ...item,
+                  sizes,
+                  extras: Array.isArray(extras) ? extras : [],
+                  tags: typeof item.tags === 'string' ? JSON.parse(item.tags) : (item.tags || []),
+                };
+              });
+              setMenu(processedMenu as Product[]);
+            } else {
+              setMenu(getStoredMenu());
+            }
+
+            // Fetch Config
+            const { data: configData, error: configError } = await supabase
+              .from('site_settings')
+              .select('config_data')
+              .eq('id', 'active_config')
+              .single();
+
+            if (!configError && configData?.config_data) {
+              const dbConfig = configData.config_data as any;
+              const mergedConfig: SiteConfig = {
+                ...INITIAL_SITE_CONFIG,
+                ...dbConfig,
+                theme: { ...INITIAL_SITE_CONFIG.theme, ...(dbConfig.theme || {}) },
+                header: { ...INITIAL_SITE_CONFIG.header, ...(dbConfig.header || {}) },
+                footer: { ...INITIAL_SITE_CONFIG.footer, ...(dbConfig.footer || {}) },
+                hero: { ...INITIAL_SITE_CONFIG.hero, ...(dbConfig.hero || {}) }
+              };
+              setConfig(mergedConfig);
+            } else {
+              const localStored = getStoredConfig();
+              const mergedLocal: SiteConfig = {
+                ...INITIAL_SITE_CONFIG,
+                ...localStored,
+                theme: { ...INITIAL_SITE_CONFIG.theme, ...(localStored.theme || {}) },
+                header: { ...INITIAL_SITE_CONFIG.header, ...(localStored.header || {}) },
+                footer: { ...INITIAL_SITE_CONFIG.footer, ...(localStored.footer || {}) },
+                hero: { ...INITIAL_SITE_CONFIG.hero, ...(localStored.hero || {}) }
+              };
+              setConfig(mergedLocal);
+            }
+          })(),
+          timeout
+        ]);
+
+        // Ensure loading screen stays for at least 1.5 seconds for branding
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, 1500 - elapsedTime);
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
       } catch (err) {
-        console.error('Sync failed:', err);
+        console.error('Initial fetch failed or timed out:', err);
+        setMenu(getStoredMenu());
+        setConfig(getStoredConfig());
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    syncData();
+    fetchData();
 
-    // 3. Real-time Subscription (Instant Updates)
-    const channel = supabase.channel('chicky-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, syncData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, syncData)
+    // Real-time Subscriptions
+    const menuChannel = supabase
+      .channel('menu_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, (payload) => {
+        console.log('Menu change received:', payload);
+        fetchData(); // Simplest way: re-fetch everything
+      })
+      .subscribe();
+
+    const configChannel = supabase
+      .channel('config_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
+        console.log('Config change received:', payload);
+        fetchData();
+      })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(menuChannel);
+      supabase.removeChannel(configChannel);
     };
   }, []);
 
-  // Update Page Direction, Title, and Brand Colors
+  // Update document properties when config or language changes
   useEffect(() => {
-    try {
-      const primaryColor = config.theme?.primaryColor || '#E4002B';
-      const logoRed = config.header?.logoRed || '';
-      
+    if (config) {
+      const primaryColor = config.theme.primaryColor;
       document.documentElement.style.setProperty('--brand-red', primaryColor);
+
+      // Dynamic color variations
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16)
+        } : { r: 228, g: 0, b: 43 };
+      };
+
+      const rgb = hexToRgb(primaryColor);
+      document.documentElement.style.setProperty('--brand-red-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      document.documentElement.style.setProperty('--shadow-red', `0 20px 40px -10px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`);
+
+      // Simple variations for light/dark
+      document.documentElement.style.setProperty('--brand-red-light', primaryColor + 'cc'); // 80% opacity fallback or just use primary
+      document.documentElement.style.setProperty('--brand-red-dark', primaryColor); // Harder to calculate purely in CSS without libraries, but primary works as base
+
       document.documentElement.dir = isAr ? 'rtl' : 'ltr';
-      document.title = isAr ? 'تشيكي فرايد تشيكن | أقوى فرايد تشيكن' : 'Chicky Fried Chicken | Egypt\'s #1';
-      
-      if (logoRed) {
-        const link: any = document.querySelector("link[rel*='icon']") || document.createElement('link');
-        link.type = 'image/png'; link.rel = 'shortcut icon'; link.href = logoRed;
-        if (!document.querySelector("link[rel*='icon']")) document.getElementsByTagName('head')[0].appendChild(link);
+
+      const link: any = document.querySelector("link[rel*='icon']") || document.createElement('link');
+      link.type = 'image/png';
+      link.rel = 'shortcut icon';
+      link.href = config.header.logoRed;
+      if (!document.querySelector("link[rel*='icon']")) {
+        document.getElementsByTagName('head')[0].appendChild(link);
       }
-    } catch (e) {
-      console.error('Document update error:', e);
+
+      document.title = isAr ? (config.metaTitleAr || config.brandNameAr) : (config.metaTitleEn || config.brandNameEn);
     }
-  }, [config.theme?.primaryColor, isAr, config.header?.logoRed]);
-
-  // Handle Sticky Menu on Scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 300) {
-        setShowStickyMenu(true);
-      } else {
-        setShowStickyMenu(false);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [config, isAr]);
 
 
 
@@ -136,16 +207,16 @@ const App: React.FC = () => {
     let result = menu;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(item => 
-        item.name.toLowerCase().includes(q) || 
+      result = result.filter(item =>
+        item.name.toLowerCase().includes(q) ||
         item.nameAr.includes(q) ||
         item.tags?.some(tag => tag.toLowerCase().includes(q))
       );
     }
     if (activeTag) {
       const targetTag = activeTag.toLowerCase();
-      result = result.filter(item => 
-        item.tags?.some(t => t.toLowerCase() === targetTag) || 
+      result = result.filter(item =>
+        item.tags?.some(t => t.toLowerCase() === targetTag) ||
         (targetTag === 'spicy' && item.isSpicy)
       );
     }
@@ -159,17 +230,17 @@ const App: React.FC = () => {
       if (bestSellers.length > 0) return bestSellers.slice(0, 6);
       return menu.filter(p => p.category === 'deals' || p.category === 'cat_deals').slice(0, 4);
     }
-    
+
     // Cross-sell logic
-    const cartCategories = new Set(cart?.map(item => item.category) || []);
-    const hasMainMeal = cartCategories.has('sandwiches') || cartCategories.has('cat_sandwiches') || 
-                        cartCategories.has('family-meals') || cartCategories.has('cat_family') || 
-                        cartCategories.has('deals') || cartCategories.has('cat_deals');
-    
+    const cartCategories = new Set(cart.map(item => item.category));
+    const hasMainMeal = cartCategories.has('sandwiches') || cartCategories.has('cat_sandwiches') ||
+      cartCategories.has('family-meals') || cartCategories.has('cat_family') ||
+      cartCategories.has('deals') || cartCategories.has('cat_deals');
+
     if (hasMainMeal && !cartCategories.has('sides') && !cartCategories.has('cat_sides')) {
       return menu.filter(p => p.category === 'sides' || p.category === 'cat_sides').slice(0, 4);
     }
-    
+
     return menu.filter(p => !cart.some(c => c.id === p.id)).slice(0, 4);
   }, [cart, menu]);
 
@@ -178,63 +249,69 @@ const App: React.FC = () => {
     return isAr ? 'نقترح لك أيضاً' : 'YOU MIGHT ALSO LIKE';
   }, [cart, isAr]);
 
-  const addToCart = (product: Product, spiciness?: 'Normal' | 'Spicy', size?: any, modifiers?: any[]) => {
-    const modifierTotal = (modifiers || []).reduce((acc, m) => acc + m.price, 0);
-    const basePrice = size ? size.price : product.price;
-    const finalPrice = basePrice + modifierTotal;
-
+  const addToCart = (product: Product, selectedSpiciness?: 'Normal' | 'Spicy', selectedSize?: any, selectedExtras?: any[]) => {
     const cartBtn = document.getElementById('cart-btn');
     if (cartBtn) {
       cartBtn.classList.add('animate-bounce');
       setTimeout(() => cartBtn.classList.remove('animate-bounce'), 1000);
     }
 
-    setCart(prev => {
-      // Find matching item by ID, Spiciness, Size ID, and Modifiers (simplified comparison)
-      const existing = prev.find(item => 
-        item.id === product.id && 
-        item.selectedSpiciness === spiciness && 
-        item.selectedSize?.id === size?.id &&
-        JSON.stringify(item.selectedModifiers || []) === JSON.stringify(modifiers || [])
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item =>
+        item.id === product.id &&
+        item.selectedSpiciness === selectedSpiciness &&
+        item.selectedSize?.id === selectedSize?.id &&
+        JSON.stringify(item.selectedExtras || []) === JSON.stringify(selectedExtras || [])
       );
 
-      if (existing) {
-        return prev.map(item => 
-          (item.id === product.id && 
-           item.selectedSpiciness === spiciness && 
-           item.selectedSize?.id === size?.id &&
-           JSON.stringify(item.selectedModifiers || []) === JSON.stringify(modifiers || [])) 
-          ? { ...item, quantity: item.quantity + 1 } 
-          : item
+      if (existingItem) {
+        return prevCart.map(item =>
+          (item.id === product.id &&
+            item.selectedSpiciness === selectedSpiciness &&
+            item.selectedSize?.id === selectedSize?.id &&
+            JSON.stringify(item.selectedExtras || []) === JSON.stringify(selectedExtras || []))
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
       }
-      return [...prev, { 
-        ...product, 
-        price: finalPrice, 
-        quantity: 1, 
-        selectedSpiciness: spiciness, 
-        selectedSize: size, 
-        selectedModifiers: modifiers 
+
+      const itemPrice = selectedSize ? selectedSize.price : product.price;
+      const extrasPrice = (selectedExtras || []).reduce((sum, mod) => sum + mod.price, 0);
+
+      return [...prevCart, {
+        ...product,
+        quantity: 1,
+        selectedSpiciness,
+        selectedSize,
+        selectedExtras,
+        price: itemPrice + extrasPrice
       }];
     });
   };
 
-  const updateQuantity = (id: string, delta: number, spiciness?: 'Normal' | 'Spicy', price?: number, sizeId?: string, modifiersJson?: string) => {
-    setCart(prev => prev?.map(item => {
-      if (item.id === id && 
-          item.selectedSpiciness === spiciness && 
-          (price === undefined || item.price === price) &&
-          (sizeId === undefined || item.selectedSize?.id === sizeId) &&
-          (modifiersJson === undefined || JSON.stringify(item.selectedModifiers || []) === modifiersJson)) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
+  const updateQuantity = (id: string, delta: number, spiciness?: 'Normal' | 'Spicy', price?: number, sizeId?: string, extrasJson?: string) => {
+    setCart(prevCart => prevCart.map(item => {
+      const itemExtrasJson = JSON.stringify(item.selectedExtras || []);
+      if (item.id === id &&
+        item.selectedSpiciness === spiciness &&
+        item.price === price &&
+        item.selectedSize?.id === sizeId &&
+        itemExtrasJson === extrasJson) {
+        return { ...item, quantity: Math.max(0, item.quantity + delta) };
       }
       return item;
-    }));
+    }).filter(item => item.quantity > 0));
   };
 
-  const removeFromCart = (id: string, spiciness?: 'Normal' | 'Spicy', price?: number) => {
-    setCart(prev => prev.filter(item => !(item.id === id && item.selectedSpiciness === spiciness && (price === undefined || item.price === price))));
+  const removeFromCart = (id: string, spiciness?: 'Normal' | 'Spicy', price?: number, sizeId?: string, extrasJson?: string) => {
+    setCart(prevCart => prevCart.filter(item => {
+      const itemExtrasJson = JSON.stringify(item.selectedExtras || []);
+      return !(item.id === id &&
+        item.selectedSpiciness === spiciness &&
+        item.price === price &&
+        item.selectedSize?.id === sizeId &&
+        itemExtrasJson === extrasJson);
+    }));
   };
 
   const handleConfirmOrder = (details: OrderDetails) => {
@@ -274,27 +351,35 @@ const App: React.FC = () => {
     setIsAdminOpen(true);
   };
 
+  // Set default category once config is loaded
+  useEffect(() => {
+    if (config?.layout?.[0]?.id && activeCategory === 'cat_deals') {
+      setActiveCategory(config.layout[0].id);
+    }
+  }, [config, activeCategory]);
+
+  if (isLoading || !config) {
+    return (
+      <div className="min-h-screen bg-mesh flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-24 h-24 bg-white/10 backdrop-blur-sm rounded-[2.5rem] flex items-center justify-center animate-pulse border border-white/20">
+            <Logo src={config?.header?.logoRed || '/logo-red.png'} className="h-16 w-auto" />
+          </div>
+          <div className="flex flex-col items-center">
+            <h2 className="text-2xl font-black brand-font text-slate-900 uppercase tracking-tighter">
+              {config?.brandNameEn || import.meta.env.VITE_BRAND_NAME || 'CHICK'}
+            </h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">Syncing Cloud Database...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen bg-mesh ${isAr ? 'font-arabic' : ''}`} dir={isAr ? 'rtl' : 'ltr'}>
-      <Navbar 
-        lang={lang} 
-        onSetLang={setLang} 
-        onOpenCart={() => setIsCartOpen(true)} 
-        cartCount={cartCount} 
-        onSearchChange={setSearchQuery} 
-        logoSrc={config.header.logoRed} 
-        tags={config.tags} 
-        activeTag={activeTag} 
-        onTagToggle={handleTagToggle} 
-        filterLabelEn={config.filterLabelEn} 
-        filterLabelAr={config.filterLabelAr}
-        showSticky={showStickyMenu}
-        categories={config.layout}
-        activeCategory={activeCategory}
-        onCategoryClick={scrollToCategory}
-        hasItemsInCategory={(catId) => filteredMenu.some(p => p.category === catId)}
-      />
-      
+      <Navbar lang={lang} onSetLang={setLang} onOpenCart={() => setIsCartOpen(true)} cartCount={cartCount} onSearchChange={setSearchQuery} logoSrc={config.header.logoRed} tags={config.tags} activeTag={activeTag} onTagToggle={handleTagToggle} filterLabelEn={config.filterLabelEn} filterLabelAr={config.filterLabelAr} />
+
       {!activeTag && !searchQuery && (
         <HeroCarousel banners={config.hero.banners} isAr={isAr} onCategoryClick={scrollToCategory} />
       )}
@@ -316,49 +401,69 @@ const App: React.FC = () => {
       )}
 
       <main className="max-w-7xl mx-auto px-6 md:px-12 py-16 mb-24 md:mb-0">
-        
+
         {/* ACTIVE FILTER HEADER */}
         {(activeTag || searchQuery) && (
           <div className="mb-12 animate-reveal flex flex-col items-center text-center">
             <div className="bg-red-50 p-6 rounded-[3rem] border-2 border-red-100 mb-6 flex items-center gap-6 shadow-xl shadow-red-100/50">
-               <div className="w-16 h-16 bg-red-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl">
-                  {activeTag ? <TagIcon size={32} /> : <Zap size={32} />}
-               </div>
-               <div className={isAr ? 'text-right' : 'text-left'}>
-                  <h2 className="text-3xl font-black brand-font text-slate-900 uppercase leading-none mb-2">
-                    {isAr ? 'نتائج التصفية' : 'FILTERED RESULTS'}
-                  </h2>
-                  <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.4em]">
-                    {activeTag ? (isAr ? `وسم: ${config.tags.find(t => t.nameEn === activeTag)?.nameAr || activeTag}` : `TAG: ${activeTag}`) : (isAr ? `بحث عن: ${searchQuery}` : `SEARCHING: ${searchQuery}`)}
-                  </p>
-               </div>
-               <button onClick={() => { setActiveTag(null); setSearchQuery(''); }} className="ml-4 p-4 bg-white text-slate-300 hover:text-red-600 rounded-full shadow-sm hover:shadow-md transition-all">
-                 <X size={20} />
-               </button>
+              <div className="w-16 h-16 bg-red-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl">
+                {activeTag ? <TagIcon size={32} /> : <Zap size={32} />}
+              </div>
+              <div className={isAr ? 'text-right' : 'text-left'}>
+                <div className="flex justify-center gap-2 mb-4 opacity-90">
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                  <Star size={16} className="text-red-600 fill-red-600" />
+                </div>
+                <h2 className="text-3xl font-black brand-font text-slate-900 uppercase leading-none mb-2">
+                  {isAr ? 'نتائج التصفية' : 'FILTERED RESULTS'}
+                </h2>
+                <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.4em]">
+                  {activeTag ? (isAr ? `وسم: ${config.tags.find(t => t.nameEn === activeTag)?.nameAr || activeTag}` : `TAG: ${activeTag}`) : (isAr ? `بحث عن: ${searchQuery}` : `SEARCHING: ${searchQuery}`)}
+                </p>
+              </div>
+              <button onClick={() => { setActiveTag(null); setSearchQuery(''); }} className="ml-4 p-4 bg-white text-slate-300 hover:text-red-600 rounded-full shadow-sm hover:shadow-md transition-all">
+                <X size={20} />
+              </button>
             </div>
             <div className="w-16 h-1 bg-red-600 rounded-full opacity-20" />
           </div>
         )}
 
         {!activeTag && !searchQuery && (
+          <div className="max-w-7xl mx-auto px-6 md:px-12 mb-16 text-center">
+            {/* Stars Decoration */}
+            <div className="flex justify-center gap-2 mb-4 opacity-90">
+              <Star size={16} className="text-red-600 fill-red-600" />
+              <Star size={16} className="text-red-600 fill-red-600" />
+              <Star size={16} className="text-red-600 fill-red-600" />
+            </div>
+
+            <h2 className="text-4xl md:text-6xl font-black brand-font text-slate-900 uppercase tracking-tighter mb-4 text-balance">
+              {isAr ? 'قائمة الطعام' : 'Our Menu'}
+            </h2>
+            <div className="w-24 h-1 bg-red-600 mx-auto rounded-full opacity-20" />
+          </div>
+        )}
+
+        {!activeTag && !searchQuery && (
           <RecommendedSection title={recommendationTitle} items={recommendations} onAddToCart={addToCart} lang={lang} />
         )}
-        
-        {config.layout.length > 0 && !showStickyMenu && (
+
+        {config.layout.length > 0 && (
           <div className="sticky top-[73px] md:top-[88px] z-40 bg-white/90 glass -mx-6 px-6 py-5 md:-mx-12 md:px-12 border-b border-gray-100 mb-12 overflow-x-auto no-scrollbar shadow-sm">
             <div className="flex gap-4 min-w-max items-center">
-              {config?.layout?.map(cat => {
+              {config.layout.map(cat => {
                 const hasItems = filteredMenu.some(p => p.category === cat.id);
                 if (!hasItems) return null;
                 return (
-                  <button 
-                    key={cat.id} 
-                    onClick={() => scrollToCategory(cat.id)} 
-                    className={`px-7 py-3 rounded-[1.25rem] text-[11px] md:text-xs font-black uppercase tracking-wider transition-all border-2 ${
-                      activeCategory === cat.id 
-                        ? 'bg-red-600 border-red-600 text-white shadow-xl scale-105' 
-                        : 'bg-white border-gray-100 text-slate-500 hover:text-red-600 hover:border-red-100'
-                    }`}
+                  <button
+                    key={cat.id}
+                    onClick={() => scrollToCategory(cat.id)}
+                    className={`px-7 py-3 rounded-[1.25rem] text-[11px] md:text-xs font-black uppercase tracking-wider transition-all border-2 ${activeCategory === cat.id
+                      ? 'bg-red-600 border-red-600 text-white shadow-xl scale-105'
+                      : 'bg-white border-gray-100 text-slate-500 hover:text-red-600 hover:border-red-100'
+                      }`}
                   >
                     {isAr ? cat.nameAr : cat.nameEn}
                   </button>
@@ -368,30 +473,32 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {config?.layout?.map((cat) => {
+        {config.layout.map((cat) => {
           const catItems = filteredMenu.filter(p => p.category === cat.id);
           if (catItems.length === 0) return null;
           return <MenuSection key={cat.id} category={cat} items={catItems} onAddToCart={addToCart} lang={lang} tagsConfig={config.tags} />;
         })}
-        
+
         {filteredMenu.length === 0 && (
           <div className="py-20 text-center animate-reveal">
-             <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-center mx-auto mb-8 text-slate-300">
-                <Search size={64} />
-             </div>
-             <h3 className="text-3xl font-black brand-font uppercase text-slate-900 mb-4">{isAr ? 'عذراً، لم نجد نتائج' : 'NO ITEMS FOUND'}</h3>
-             <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">{isAr ? 'جرب البحث عن شيء آخر أو تغيير الفلتر' : 'Try searching for something else or clearing the filters'}</p>
+            <div className="w-32 h-32 bg-slate-100 rounded-[3rem] flex items-center justify-center mx-auto mb-8 text-slate-300">
+              <Search size={64} />
+            </div>
+            <h3 className="text-3xl font-black brand-font uppercase text-slate-900 mb-4">{isAr ? 'عذراً، لم نجد نتائج' : 'NO ITEMS FOUND'}</h3>
+            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">{isAr ? 'جرب البحث عن شيء آخر أو تغيير الفلتر' : 'Try searching for something else or clearing the filters'}</p>
           </div>
         )}
       </main>
 
+      {/* Checkered Divider */}
+      <div className="h-4 bg-checkered-red border-y border-black/5 opacity-100"></div>
       <Footer config={config} lang={lang} onOpenAdmin={handleOpenAdmin} scrollToCategory={scrollToCategory} />
-      <WhatsAppFloat phone={config.header.phone} lang={lang} />
-      <MobileBottomNav 
-        onOpenCart={() => setIsCartOpen(true)} 
-        cartCount={cartCount} 
-        lang={lang} 
-        onHomeClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} 
+      <WhatsAppFloat phone={config.header.whatsapp || config.header.phone} lang={lang} />
+      <MobileBottomNav
+        onOpenCart={() => setIsCartOpen(true)}
+        cartCount={cartCount}
+        lang={lang}
+        onHomeClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         onSearchClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
         onMenuClick={() => scrollToCategory(config.layout[0]?.id)}
         categories={config.layout}
@@ -399,14 +506,14 @@ const App: React.FC = () => {
       />
 
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} items={cart} onUpdateQuantity={updateQuantity} onRemove={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} lang={lang} />
-      <CheckoutModal 
-        isOpen={isCheckoutOpen} 
-        onClose={() => setIsCheckoutOpen(false)} 
-        subtotal={cartSubtotal} 
-        onConfirm={handleConfirmOrder} 
-        cartItems={cart} 
-        onClearCart={() => setCart([])} 
-        lang={lang} 
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        subtotal={cartSubtotal}
+        onConfirm={handleConfirmOrder}
+        cartItems={cart}
+        onClearCart={() => setCart([])}
+        lang={lang}
         serviceType={serviceType || 'delivery'}
         config={config}
       />

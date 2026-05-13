@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HeroBanner } from '../types';
+import { Star } from 'lucide-react';
 
 interface HeroCarouselProps {
   banners: HeroBanner[];
@@ -16,12 +17,12 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
   const minSwipeDistance = 50;
 
   const nextSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % (banners?.length || 1));
-  }, [banners?.length]);
+    setCurrentIndex((prev) => (prev + 1) % banners.length);
+  }, [banners.length]);
 
   const prevSlide = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + (banners?.length || 1)) % (banners?.length || 1));
-  }, [banners?.length]);
+    setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
+  }, [banners.length]);
 
   const goToSlide = (index: number) => {
     setCurrentIndex(index);
@@ -56,14 +57,14 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
   };
 
   useEffect(() => {
-    if (!banners || banners.length <= 1 || isPaused) return;
+    if (banners.length <= 1 || isPaused) return;
     
     const interval = setInterval(() => {
       nextSlide();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [banners?.length, isPaused, nextSlide]);
+  }, [banners.length, isPaused, nextSlide]);
 
   if (!banners || banners.length === 0) return null;
 
@@ -81,15 +82,15 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
         <div 
           className="flex h-full transition-transform duration-[1200ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
           style={{ 
-            transform: `translateX(${isAr ? currentIndex * (100 / (banners?.length || 1)) : -currentIndex * (100 / (banners?.length || 1))}%)`,
-            width: `${(banners?.length || 1) * 100}%`
+            transform: `translateX(${isAr ? currentIndex * (100 / banners.length) : -currentIndex * (100 / banners.length)}%)`,
+            width: `${banners.length * 100}%`
           }}
         >
-          {banners?.map((banner, idx) => (
+          {banners.map((banner, idx) => (
             <div 
               key={banner.id} 
               className={`h-full relative flex-shrink-0 overflow-hidden ${banner.targetCategoryId ? 'cursor-pointer' : ''}`}
-              style={{ width: `${100 / (banners?.length || 1)}%` }}
+              style={{ width: `${100 / banners.length}%` }}
               onClick={() => banner.targetCategoryId && onCategoryClick(banner.targetCategoryId)}
             >
               <img 
@@ -102,14 +103,25 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
               {/* Refined Overlays */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />
               <div className="absolute inset-0 bg-red-900/5 mix-blend-overlay pointer-events-none" />
+              
+              {/* Checkered Borders */}
+              <div className="absolute top-0 left-0 w-full h-4 bg-checkered-red opacity-60 z-10" />
+              <div className="absolute bottom-0 left-0 w-full h-4 bg-checkered-red opacity-60 z-10" />
+
+              {/* Stars Decoration */}
+              <div className="absolute top-6 right-6 z-20 flex gap-1 opacity-90">
+                 <Star size={16} className="text-red-600 fill-red-600" />
+                 <Star size={16} className="text-red-600 fill-red-600" />
+                 <Star size={16} className="text-red-600 fill-red-600" />
+              </div>
             </div>
           ))}
         </div>
 
         {/* Pagination Dots */}
-        {(banners?.length || 0) > 1 && (
+        {banners.length > 1 && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-            {banners?.map((_, idx) => (
+            {banners.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => goToSlide(idx)}

@@ -17,8 +17,8 @@ const WhatsAppIcon = ({ size = 28 }: { size?: number }) => (
 const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({ phone, lang }) => {
   const isAr = lang === 'ar';
   const message = isAr 
-    ? encodeURIComponent('مرحباً شيكي! 🍗 أريد طلب وجبة شهية الآن.') 
-    : encodeURIComponent('Hello Chicky! 🍗 I want to order a delicious meal now.');
+    ? encodeURIComponent('مرحباً! 🍗 أريد طلب وجبة شهية الآن.') 
+    : encodeURIComponent('Hello! 🍗 I want to order a delicious meal now.');
 
   const formatWhatsAppNumber = (num: string) => {
     let cleaned = num.replace(/\D/g, '');

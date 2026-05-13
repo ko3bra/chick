@@ -28,14 +28,14 @@ export interface Product {
   hasSizes?: boolean;
   sizes?: ProductSize[];
   tags?: string[];
-  modifiers?: Modifier[];
+  extras?: Modifier[];
 }
 
 export interface CartItem extends Product {
   quantity: number;
   selectedSpiciness?: 'Normal' | 'Spicy';
   selectedSize?: ProductSize;
-  selectedModifiers?: Modifier[];
+  selectedExtras?: Modifier[];
 }
 
 export interface CategoryConfig {
@@ -117,6 +117,10 @@ export interface UserProfile {
 }
 
 export interface SiteConfig {
+  brandNameEn: string;
+  brandNameAr: string;
+  metaTitleEn: string;
+  metaTitleAr: string;
   hero: {
     banners: HeroBanner[];
   };
@@ -124,6 +128,7 @@ export interface SiteConfig {
     logoRed: string;
     logoWhite: string;
     phone: string;
+    whatsapp?: string;
   };
   footer: {
     aboutEn: string;
@@ -144,6 +149,7 @@ export interface SiteConfig {
   areas: Area[];
   theme: {
     primaryColor: string;
+    secondaryColor?: string;
   };
   branchStatus?: 'open' | 'closed';
 }

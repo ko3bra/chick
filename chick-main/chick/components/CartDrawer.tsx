@@ -37,28 +37,28 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onUpdat
     normal: isAr ? 'عادي' : 'Normal'
   };
 
-  const subtotal = items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const getItemKey = (item: CartItem) => {
-    const modifiersKey = JSON.stringify(item.selectedModifiers || []);
-    return `${item.id}-${item.selectedSpiciness || 'Default'}-${item.selectedSize?.id || 'base'}-${modifiersKey}`;
+    const extrasKey = JSON.stringify(item.selectedExtras || []);
+    return `${item.id}-${item.selectedSpiciness || 'Default'}-${item.selectedSize?.id || 'base'}-${extrasKey}`;
   };
 
   const handleRemove = (item: CartItem) => {
     const key = getItemKey(item);
-    const modifiersJson = JSON.stringify(item.selectedModifiers || []);
+    const extrasJson = JSON.stringify(item.selectedExtras || []);
     setRemovingKey(key);
     setTimeout(() => {
-      onRemove(item.id, item.selectedSpiciness, item.price, item.selectedSize?.id, modifiersJson);
+      onRemove(item.id, item.selectedSpiciness, item.price, item.selectedSize?.id, extrasJson);
       setRemovingKey(null);
     }, 250); 
   };
 
   const handleQuantityUpdate = (item: CartItem, delta: number) => {
     const key = getItemKey(item);
-    const modifiersJson = JSON.stringify(item.selectedModifiers || []);
+    const extrasJson = JSON.stringify(item.selectedExtras || []);
     setLastActionId(key + '-' + Date.now());
-    onUpdateQuantity(item.id, delta, item.selectedSpiciness, item.price, item.selectedSize?.id, modifiersJson);
+    onUpdateQuantity(item.id, delta, item.selectedSpiciness, item.price, item.selectedSize?.id, extrasJson);
   };
 
   if (!isOpen) return null;
@@ -77,7 +77,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onUpdat
               {t.title}
             </h2>
             <p className={`text-[10px] font-bold text-gray-400 uppercase tracking-widest ${isAr ? 'mr-9' : 'ml-9'}`}>
-              {items?.length || 0} {isAr ? t.itemsSelected : ((items?.length || 0) === 1 ? t.item : t.itemsSelected)}
+              {items.length} {isAr ? t.itemsSelected : (items.length === 1 ? t.item : t.itemsSelected)}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-xl transition-all active:scale-90">
@@ -86,7 +86,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onUpdat
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-          {items?.length === 0 ? (
+          {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-6 py-12 animate-scale-up">
               <div className="bg-gray-100 p-10 rounded-[2.5rem] shadow-inner">
                 <ShoppingBag size={64} className="text-gray-300" />
@@ -103,7 +103,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onUpdat
               </button>
             </div>
           ) : (
-            items?.map((item) => {
+            items.map((item) => {
               const itemKey = getItemKey(item);
               return (
                 <div 
@@ -135,7 +135,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onUpdat
                                 {item.selectedSpiciness === 'Spicy' ? t.spicy : t.normal}
                               </span>
                             )}
-                            {item.selectedModifiers?.map(mod => (
+                            {item.selectedExtras && item.selectedExtras.map(mod => (
                               <span key={mod.id} className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-md bg-slate-50 text-slate-500 border border-slate-100 shadow-sm">
                                 + {lang === 'ar' ? mod.nameAr : mod.nameEn}
                               </span>

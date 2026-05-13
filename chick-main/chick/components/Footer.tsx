@@ -47,7 +47,7 @@ const Footer: React.FC<FooterProps> = ({ config, lang, onOpenAdmin, scrollToCate
             {isAr ? 'روابط سريعة' : 'QUICK LINKS'}
           </h4>
           <ul className="space-y-4 text-base font-bold text-slate-400">
-            {config?.layout?.slice(0, 5).map(cat => (
+            {config.layout.slice(0, 5).map(cat => (
               <li key={cat.id}>
                 <button onClick={() => scrollToCategory(cat.id)} className="hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2">
                    <div className="w-1.5 h-1.5 rounded-full bg-red-600"></div>
@@ -64,7 +64,7 @@ const Footer: React.FC<FooterProps> = ({ config, lang, onOpenAdmin, scrollToCate
           </h4>
           <div className="space-y-6">
             <a 
-              href="https://maps.app.goo.gl/R49XXYqwM6vzEf469" 
+              href={config.footer.locationUrl || "#"} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="flex items-start gap-4 group hover:bg-white/5 p-2 -m-2 rounded-2xl transition-all"
