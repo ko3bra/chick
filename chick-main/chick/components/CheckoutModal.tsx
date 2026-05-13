@@ -63,6 +63,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isSearchingMap, setIsSearchingMap] = useState(false);
   const [mapSearchResults, setMapSearchResults] = useState<any[]>([]);
   const [showMapResults, setShowMapResults] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isScheduling) {
@@ -305,7 +306,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const upcaseCode = promoInput.toUpperCase().trim();
 
     try {
-      setLoading(true);
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('promo_codes')
         .select('*')
@@ -359,7 +360,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       console.error('Promo apply error:', err);
       setPromoError(isAr ? 'حدث خطأ أثناء تطبيق الكود' : 'Error applying code');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }
 
@@ -775,9 +776,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 />
                 <button
                   onClick={handleApplyPromo}
-                  className={`absolute ${isAr ? 'left-2' : 'right-2'} top-1/2 -translate-y-1/2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all`}
+                  disabled={isLoading}
+                  className={`absolute ${isAr ? 'left-2' : 'right-2'} top-1/2 -translate-y-1/2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all flex items-center gap-2`}
                 >
-                  {t.apply}
+                  {isLoading ? <Loader2 size={14} className="animate-spin" /> : t.apply}
                 </button>
                 {appliedPromo && <span className="absolute -bottom-6 left-1 text-[10px] font-bold text-green-600 uppercase italic">{isAr ? `تم تطبيق خصم: -${discountAmount} ج.م` : `Code Applied: -${discountAmount} LE!`}</span>}
                 {promoError && <span className="absolute -bottom-6 left-1 text-[10px] font-bold text-red-600 uppercase italic">{promoError}</span>}
