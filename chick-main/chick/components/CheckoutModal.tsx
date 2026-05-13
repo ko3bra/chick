@@ -300,23 +300,66 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const finalTotal = subtotal + currentFee - discountAmount;
 
   const handleApplyPromo = async () => {
+    if (!promoInput) return;
     setPromoError(null);
-    const upcaseCode = promoInput.toUpperCase();
+    const upcaseCode = promoInput.toUpperCase().trim();
 
-    // Database connection disabled.
-    // Promo codes are now managed locally or disabled.
-    // For now, we'll allow a simple mock code 'chick10'
-    if (upcaseCode === 'chick10') {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', upcaseCode)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        setPromoError(isAr ? 'كود غير صحيح أو منتهي' : 'Invalid or expired code');
+        return;
+      }
+
+      // Check usage limit
+      if (data.usage_limit && data.usage_count >= data.usage_limit) {
+        setPromoError(isAr ? 'عذراً، وصل هذا الكود للحد الأقصى للاستخدام' : 'Sorry, this code has reached its usage limit');
+        return;
+      }
+
+      // Check min order value
+      if (data.min_order_value && subtotal < data.min_order_value) {
+        setPromoError(isAr ? `الحد الأدنى للطلب هو ${data.min_order_value} ج.م` : `Min order is ${data.min_order_value} LE`);
+        return;
+      }
+
+      // Check applicable categories/products if any
+      let isApplicable = true;
+      if ((data.applicable_categories && data.applicable_categories.length > 0) || 
+          (data.applicable_products && data.applicable_products.length > 0)) {
+        
+        isApplicable = cartItems.some(item => {
+          const catMatch = data.applicable_categories?.includes(item.category);
+          const prodMatch = data.applicable_products?.includes(item.id);
+          return catMatch || prodMatch;
+        });
+
+        if (!isApplicable) {
+          setPromoError(isAr ? 'هذا الكود غير متاح لهذه المنتجات' : 'Code not applicable to these items');
+          return;
+        }
+      }
+
       setAppliedPromo({
-        code: 'chick10',
-        discountType: 'percentage',
-        discountValue: 10,
-        applicableCategories: [],
-        applicableProducts: []
+        code: data.code,
+        discountType: data.discount_type,
+        discountValue: data.discount_value,
+        applicableCategories: data.applicable_categories || [],
+        applicableProducts: data.applicable_products || []
       });
       setPromoInput('');
-    } else {
-      setPromoError(isAr ? 'كود غير صحيح' : 'Invalid code');
+    } catch (err) {
+      console.error('Promo apply error:', err);
+      setPromoError(isAr ? 'حدث خطأ أثناء تطبيق الكود' : 'Error applying code');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -395,6 +438,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         console.error('Supabase Error:', saveError);
         alert('Database Error: ' + saveError.message);
         throw saveError;
+      }
+
+      // 1.1 Increment promo usage count if applied
+      if (appliedPromo) {
+        await supabase.rpc('increment_promo_usage', { promo_code_text: appliedPromo.code });
       }
     } catch (err: any) {
       console.error('Failed to save order to database:', err);

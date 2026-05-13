@@ -35,7 +35,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   const [builderSubTab, setBuilderSubTab] = useState<'branding' | 'hero' | 'categories' | 'tags' | 'social'>('branding');
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [promoCodes, setPromoCodes] = useState<any[]>([]);
-  const [newPromo, setNewPromo] = useState<any>({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, applicable_categories: [], applicable_products: [] });
+  const [newPromo, setNewPromo] = useState<any>({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, usage_limit: null, applicable_categories: [], applicable_products: [] });
   const [filterType, setFilterType] = useState<'day' | 'month' | 'year'>('month');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -859,6 +859,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                       <label className={labelStyle}>Min Order (LE)</label>
                       <input type="number" className={inputStyle} value={newPromo.min_order_value} onChange={e => setNewPromo({ ...newPromo, min_order_value: Number(e.target.value) })} />
                     </div>
+                    <div className="w-full md:w-48 space-y-4">
+                      <label className={labelStyle}>Usage Limit</label>
+                      <input type="number" className={inputStyle} placeholder="Unlimited" value={newPromo.usage_limit || ''} onChange={e => setNewPromo({ ...newPromo, usage_limit: e.target.value ? Number(e.target.value) : null })} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 border-t pt-10">
@@ -921,7 +925,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                     onClick={async () => {
                       if (!newPromo.code) return;
                       await supabase.from('promo_codes').upsert(newPromo);
-                      setNewPromo({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, applicable_categories: [], applicable_products: [] });
+                      setNewPromo({ code: '', discount_type: 'percentage', discount_value: 0, min_order_value: 0, usage_limit: null, applicable_categories: [], applicable_products: [] });
                     }}
                     className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-red-600 transition-all shadow-xl shadow-slate-200"
                   >
@@ -952,6 +956,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                                 MIN {pc.min_order_value} LE
                               </span>
                             )}
+                            <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border border-blue-100">
+                              Used: {pc.usage_count || 0} / {pc.usage_limit || '∞'}
+                            </span>
                           </div>
                           {pc.applicable_categories && pc.applicable_categories.length > 0 && (
                             <div className="mt-4 flex flex-wrap gap-2">
