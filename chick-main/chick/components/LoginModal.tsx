@@ -30,13 +30,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md animate-fade-in"
-        onClick={onClose}
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-md animate-fade-in" 
+        onClick={onClose} 
       />
-
+      
       <div className="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden animate-scale-up border-4 border-white">
-        <button
+        <button 
           onClick={onClose}
           className="absolute top-8 right-8 p-2 hover:bg-gray-100 rounded-full transition-colors z-10 text-gray-400"
         >
@@ -44,13 +44,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
         </button>
 
         <div className="flex border-b">
-          <button
+          <button 
             onClick={() => setMode('login')}
             className={`flex-1 py-8 text-xs font-black tracking-widest transition-all ${mode === 'login' ? 'text-red-600 border-b-4 border-red-600 bg-white' : 'text-slate-400 bg-slate-50'}`}
           >
             SIGN IN
           </button>
-          <button
+          <button 
             onClick={() => setMode('signup')}
             className={`flex-1 py-8 text-xs font-black tracking-widest transition-all ${mode === 'signup' ? 'text-red-600 border-b-4 border-red-600 bg-white' : 'text-slate-400 bg-slate-50'}`}
           >
@@ -61,7 +61,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
         <div className="p-10">
           <div className="text-center mb-10">
             <h3 className="text-4xl font-black brand-font text-slate-900 tracking-tight uppercase">
-              {mode === 'login' ? 'Welcome Back' : 'Join chick'}
+              {mode === 'login' ? 'Welcome Back' : 'Join Chicky'}
             </h3>
             <p className="text-slate-400 text-sm mt-2 font-bold uppercase tracking-widest">
               {mode === 'login' ? 'The crunch awaits' : 'Start your flavor journey'}
@@ -84,8 +84,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
               <input type="password" placeholder="Password" className={inputClass} required />
             </div>
 
-            <button
-              type="submit"
+            <button 
+              type="submit" 
               disabled={loading}
               className="w-full bg-red-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-red-100 hover:bg-red-700 transition-all active:scale-95 flex items-center justify-center gap-3 mt-6 uppercase tracking-widest"
             >

@@ -14,7 +14,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ isOpen, onClose, onAuth
   const [loading, setLoading] = useState(false);
 
   // Master passcode - typically would be in env or backend, but for this app we use a fixed one.
-  const MASTER_PASSCODE = '01006225664';
+  const MASTER_PASSCODE = '01220062060';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -102,10 +102,6 @@ export const INITIAL_MENU_DATA: Product[] = [
 ];
 
 export const INITIAL_SITE_CONFIG: SiteConfig = {
-  brandNameEn: 'CHICK',
-  brandNameAr: 'تشيك',
-  metaTitleEn: 'CHICK | Fried Chicken',
-  metaTitleAr: 'تشيك | فرايد تشيكن',
   hero: {
     banners: [
       {
@@ -125,21 +121,20 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
     ]
   },
   header: {
-    logoRed: '/logo-red.png',
-    logoWhite: '/logo-red.png', // Fallback to red for now as white was canceled
-    phone: '0502222850',
-    whatsapp: '01062222850'
+    logoRed: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-red.png',
+    logoWhite: 'https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-white.png',
+    phone: '01220062060'
   },
   footer: {
-    aboutEn: 'CRUNCH MELT HEART',
-    aboutAr: 'قرمشة تدوب القلب',
-    facebook: 'https://facebook.com/',
-    instagram: 'https://instagram.com/',
-    tiktok: 'https://tiktok.com/@',
-    locationUrl: 'https://maps.app.goo.gl/wJhLQCFqwcqtRA5s7',
-    addressEn: 'Gihan St. x Teraa St., El Mansoura',
-    addressAr: 'امام الدفاع المدنى داخل مول الجامعة بلازا، تقاطع شارع جيهان مع، شارع الترعة، محافظة الدقهلية',
-    copyrightEn: '© 2024 CHICK',
+    aboutEn: 'The best fried chicken in Egypt.',
+    aboutAr: 'أقوى فرايد تشيكن في مصر.',
+    facebook: 'https://facebook.com/chicky',
+    instagram: 'https://instagram.com/chicky',
+    tiktok: 'https://tiktok.com/@chicky',
+    locationUrl: 'https://maps.app.goo.gl/R49XXYqwM6vzEf469',
+    addressEn: 'Palm Beach, St 14 corner 29, El Agamy El Bahria, Egypt',
+    addressAr: 'شاطئ النخيل شارع ١٤ مع ٢٩، العجمي البحرية، الإسكندرية',
+    copyrightEn: '© 2024 Hassan Mohamed',
     copyrightAr: '© ٢٠٢٤ حسن محمد'
   },
   layout: [
@@ -164,23 +159,28 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
 };
 
 export const getStoredMenu = (): Product[] => {
-  const stored = localStorage.getItem('site_menu');
+  const stored = localStorage.getItem('chicky_menu');
   const parsed = stored ? JSON.parse(stored) : null;
   return (parsed && Array.isArray(parsed) && parsed.length > 0) ? parsed : INITIAL_MENU_DATA;
 };
 
 export const getStoredConfig = (): SiteConfig => {
-  const stored = localStorage.getItem('site_config');
+  const stored = localStorage.getItem('chicky_config');
   const parsed = stored ? JSON.parse(stored) : null;
   return (parsed && parsed.hero && parsed.hero.banners && parsed.hero.banners.length > 0) ? parsed : INITIAL_SITE_CONFIG;
 };
 
 export const saveMenuToStorage = async (menu: Product[]) => {
-  localStorage.setItem('site_menu', JSON.stringify(menu));
+  localStorage.setItem('chicky_menu', JSON.stringify(menu));
+  // In Supabase, we usually handle individual row updates in the Admin component,
+  // but for compatibility with existing code that sends the whole array:
+  // (Assuming a 'menu_items' table where each product is a row)
+  // This function might be better handled in AdminDashboard now.
 };
 
 export const saveConfigToStorage = async (config: SiteConfig) => {
-  localStorage.setItem('site_config', JSON.stringify(config));
+  localStorage.setItem('chicky_config', JSON.stringify(config));
+  // Similarly, site_builder updates will be handled in AdminDashboard.
 };
 
 

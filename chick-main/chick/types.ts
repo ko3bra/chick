@@ -117,10 +117,6 @@ export interface UserProfile {
 }
 
 export interface SiteConfig {
-  brandNameEn: string;
-  brandNameAr: string;
-  metaTitleEn: string;
-  metaTitleAr: string;
   hero: {
     banners: HeroBanner[];
   };
@@ -128,7 +124,6 @@ export interface SiteConfig {
     logoRed: string;
     logoWhite: string;
     phone: string;
-    whatsapp?: string;
   };
   footer: {
     aboutEn: string;
@@ -149,7 +144,6 @@ export interface SiteConfig {
   areas: Area[];
   theme: {
     primaryColor: string;
-    secondaryColor?: string;
   };
   branchStatus?: 'open' | 'closed';
 }

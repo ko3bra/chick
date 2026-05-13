@@ -12,7 +12,7 @@ interface RecommendedSectionProps {
 const RecommendedSection: React.FC<RecommendedSectionProps> = ({ title, items, onAddToCart, lang }) => {
   const [showOptionsId, setShowOptionsId] = useState<string | null>(null);
 
-  if (items.length === 0) return null;
+  if (!items || items.length === 0) return null;
 
   const handleAddClick = (product: Product) => {
     if (product.spicinessOption) {
@@ -84,7 +84,7 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ title, items, o
       )}
 
       <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-        {items.map((item) => (
+        {items?.map((item) => (
           <div
             key={item.id}
             className="shrink-0 w-64 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-lg transition-all p-3 flex flex-col group relative overflow-hidden"
@@ -119,10 +119,10 @@ const RecommendedSection: React.FC<RecommendedSectionProps> = ({ title, items, o
             </div>
             <button
               onClick={() => handleAddClick(item)}
-              className="mt-3 w-full py-3 rounded-xl btn-add-to-cart"
+              className="mt-3 w-full bg-gray-50 hover:bg-red-600 text-gray-700 hover:text-white font-black py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
             >
-              <Plus size={18} strokeWidth={4} />
-              <span className="text-[11px] font-black">{lang === 'en' ? 'Quick Add' : 'أضف سريعاً'}</span>
+              <Plus size={14} />
+              {lang === 'en' ? 'Quick Add' : 'أضف سريعاً'}
             </button>
           </div>
         ))}

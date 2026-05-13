@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Flame, CheckCircle, X, Star } from 'lucide-react';
+import { Plus, Flame, CheckCircle, X, Sparkles } from 'lucide-react';
 import { Product, Language, CategoryConfig, TagConfig } from '../types';
 
 interface MenuSectionProps {
@@ -38,19 +38,11 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
 
   return (
     <section id={category.id} className="py-12 scroll-mt-32">
-      <div className="flex flex-col items-center mb-12 text-center">
-         <div className="flex gap-1 mb-4 opacity-90">
-            <Star size={14} className="text-red-600 fill-red-600" />
-            <Star size={14} className="text-red-600 fill-red-600" />
-            <Star size={14} className="text-red-600 fill-red-600" />
-         </div>
-         <div className="flex items-center gap-4 w-full">
-            <div className="h-px flex-1 bg-gradient-to-l from-slate-200 to-transparent"></div>
-            <h2 className="text-3xl md:text-5xl font-black brand-font tracking-tight uppercase text-slate-900 px-4">
-              {lang === 'en' ? category.nameEn : category.nameAr}
-            </h2>
-            <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
-         </div>
+      <div className="flex items-center gap-6 mb-10">
+        <h2 className="text-4xl font-black brand-font tracking-tight uppercase text-slate-900">
+          {lang === 'en' ? category.nameEn : category.nameAr}
+        </h2>
+        <div className="h-1 flex-1 bg-gradient-to-r from-slate-100 to-transparent rounded-full"></div>
       </div>
       
       {showOptionsId && currentItem && (
@@ -65,7 +57,7 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
             
             <div className="mb-8">
               <div className="w-24 h-24 bg-red-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-200">
-                <Star size={48} className="text-white animate-pulse" fill="currentColor" />
+                <Sparkles size={48} className="text-white animate-pulse" fill="currentColor" />
               </div>
               <h3 className="text-3xl font-black brand-font text-slate-900 uppercase tracking-tight leading-tight">
                 {lang === 'en' ? 'CUSTOMIZE' : 'تخصيص الطلب'}
@@ -124,7 +116,7 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
                     {lang === 'en' ? 'Add Extras' : 'إضافات'}
                   </p>
                   <div className="grid grid-cols-1 gap-2">
-                     {currentItem.modifiers.map(mod => {
+                     {currentItem.modifiers?.map(mod => {
                         const isSelected = tempSelection.modifiers?.some(m => m.id === mod.id);
                         return (
                           <button 
@@ -159,7 +151,7 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-8">
-        {items.map((item) => {
+        {items?.map((item) => {
           const isAnimating = animatingId?.startsWith(item.id);
 
           return (
@@ -226,16 +218,18 @@ const MenuSection: React.FC<MenuSectionProps> = ({ category, items, onAddToCart,
                 <div className="mt-4 md:mt-8 flex gap-1 md:gap-2">
                   <button 
                     onClick={() => handleAddClick(item)}
-                    className={`flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl shadow-sm btn-add-to-cart ${
-                      isAnimating ? 'bg-success border-success text-white shadow-lg' : ''
+                    className={`flex-1 flex items-center justify-center gap-2 md:gap-3 py-2.5 md:py-4 rounded-xl md:rounded-2xl transition-all font-black uppercase tracking-widest text-[9px] md:text-[10px] active:scale-95 shadow-sm ${
+                      isAnimating 
+                      ? 'bg-success border-success text-white shadow-lg' 
+                      : 'bg-slate-50 border-transparent text-slate-900 group-hover:bg-red-600 group-hover:text-white'
                     }`}
                   >
                     {isAnimating ? (
-                      <CheckCircle size={20} />
+                      <CheckCircle size={16} md:size={18} />
                     ) : (
                       <>
-                        <Plus size={20} strokeWidth={4} />
-                        <span className="text-[11px] md:text-xs font-black">{lang === 'en' ? 'Add' : 'أضف'}</span>
+                        <Plus size={16} md:size={18} strokeWidth={3} />
+                        <span>{lang === 'en' ? 'Add' : 'أضف'}</span>
                       </>
                     )}
                   </button>

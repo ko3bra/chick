@@ -4,7 +4,7 @@ import {
   X, Plus, Edit2, Trash2, Search, Layout, Database,
   Settings2, Truck, Map as MapIcon, AppWindow,
   Sparkles, Star, Flame, Image as ImageIcon, Save,
-  ChevronRight, ChevronUp, ChevronDown, Phone, MessageSquare, Globe, Facebook, Instagram, Upload, FileImage,
+  ChevronRight, ChevronUp, ChevronDown, Phone, Globe, Facebook, Instagram, Upload, FileImage,
   RotateCcw, Layers, Hash, Check, Trash, Info, Key, MapPin,
   Palette, Share2, BarChart3, ListOrdered, AlignLeft, Eye, Tag as TagIcon,
   ArrowRight, MousePointer2, Navigation, CheckCircle2, Bell, Loader2, Download, FileSpreadsheet
@@ -65,12 +65,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   const [localFilterLabelEn, setLocalFilterLabelEn] = useState(config.filterLabelEn || '');
   const [localFilterLabelAr, setLocalFilterLabelAr] = useState(config.filterLabelAr || '');
 
+  const [newOrderToast, setNewOrderToast] = useState<{id: string, name: string} | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-        if (ordersData) setOrders(ordersData.map(o => ({
+    // Initialize audio
+    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audioRef.current.load();
+
+    // 1. Fetch Initial Orders from Supabase
+    const fetchOrders = async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        const mappedOrders = data?.map(o => ({
           id: o.id,
           customerName: o.customer_name,
           phone: o.phone,
@@ -81,18 +92,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
           totalPrice: o.total_price,
           status: o.status,
           createdAt: o.created_at
-        })));
-
-        const { data: promoData } = await supabase.from('promo_codes').select('*');
-        if (promoData) setPromoCodes(promoData);
-      } catch (err) {
-        console.error('Fetch error:', err);
-      } finally {
-        setLoading(false);
+        }));
+        setOrders(mappedOrders);
       }
     };
-    if (isOpen) fetchData();
-  }, [isOpen]);
+
+    fetchOrders();
+
+    // 3. Fetch Promo Codes
+    const fetchPromoCodes = async () => {
+      const { data, error } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false });
+      if (!error && data) setPromoCodes(data);
+    };
+    fetchPromoCodes();
+
+    // 2. Real-time Subscription
+    const channel = supabase
+      .channel('realtime_admin')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
+        const newOrder = payload.new;
+        const mapped = {
+          id: newOrder.id,
+          customerName: newOrder.customer_name,
+          phone: newOrder.phone,
+          address: newOrder.address,
+          area: newOrder.area,
+          location: newOrder.location,
+          items: newOrder.items,
+          totalPrice: newOrder.total_price,
+          status: newOrder.status,
+          createdAt: newOrder.created_at
+        };
+        setOrders(prev => [mapped, ...prev]);
+
+        console.log('REAL-TIME: New order received!', newOrder);
+        
+        // Sound Notification
+        if (audioRef.current) {
+          console.log('REAL-TIME: Playing notification sound...');
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(e => console.log('Audio play blocked or failed:', e));
+        }
+
+        // Visual Toast
+        setNewOrderToast({ id: newOrder.id, name: newOrder.customer_name });
+        setTimeout(() => setNewOrderToast(null), 10000); // Hide after 10 seconds
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'promo_codes' }, () => {
+        fetchPromoCodes();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const stats = React.useMemo(() => {
     const filteredOrders = orders.filter(o => {
@@ -118,7 +170,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
       areaStats[area].revenue += order.totalPrice;
 
       // Item Stats
-      order.items.forEach(item => {
+      order.items?.forEach(item => {
         itemStats[item.name] = (itemStats[item.name] || 0) + item.quantity;
       });
     });
@@ -203,11 +255,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     }
   }, [activeTab, isOpen, config.areas, config.theme.primaryColor]);
 
-
   const refreshExistingZones = () => {
     if (!existingZonesLayerRef.current) return;
     existingZonesLayerRef.current.clearLayers();
-    config.areas.forEach(area => {
+    config?.areas?.forEach(area => {
       if (area.points && area.points.length > 0) {
         const poly = L.polygon(area.points, {
           color: selectedAreaId === area.id ? config.theme.primaryColor : '#475569',
@@ -227,22 +278,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     });
   };
 
-  const uploadToSupabase = async (file: File, folder: string): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${folder}/${fileName}`;
+  const uploadToSupabase = async (file: File, path: string): Promise<string | null> => {
+    try {
+      const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const { data, error } = await supabase.storage
+        .from('menu-images')
+        .upload(`${path}/${fileName}`, file, { cacheControl: '3600', upsert: false });
 
-    const { error: uploadError } = await supabase.storage
-      .from('menu-images')
-      .upload(filePath, file);
+      if (error) throw error;
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
+      const { data: { publicUrl } } = supabase.storage
+        .from('menu-images')
+        .getPublicUrl(`${path}/${fileName}`);
+
+      return publicUrl;
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('Failed to upload image. Please check if the "menu-images" bucket exists in Supabase Storage.');
       return null;
     }
-
-    const { data } = supabase.storage.from('menu-images').getPublicUrl(filePath);
-    return data.publicUrl;
   };
 
   useEffect(() => {
@@ -264,31 +318,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     try {
       const productToSave = {
         ...editingProduct,
-        id: editingProduct.id || 'p' + Date.now()
+        id: editingProduct.id || 'p' + Date.now(),
+        // Map 'image' to 'image_url' for the database if needed, 
+        // but here we just ensure the object sent matches the table columns.
+        // If the user wants 'image_url', we'll use that.
       };
 
-      const { error } = await supabase.from('menu_items').upsert({
-        id: productToSave.id,
-        name: productToSave.name,
-        nameAr: productToSave.nameAr,
-        price: productToSave.price,
-        originalPrice: productToSave.originalPrice,
-        description: productToSave.description,
-        descriptionAr: productToSave.descriptionAr,
-        image: productToSave.image,
-        category: productToSave.category,
-        isSpicy: productToSave.isSpicy,
-        spicinessOption: productToSave.spicinessOption,
-        hasSizes: productToSave.hasSizes,
-        sizes: productToSave.sizes,
-        tags: productToSave.tags
-      });
+      const { error } = await supabase
+        .from('menu_items')
+        .upsert(productToSave);
 
       if (error) throw error;
 
+      // Update local state after successful Supabase save
       let newMenu: Product[];
       if (editingProduct.id) {
-        newMenu = menu.map(p => p.id === editingProduct.id ? productToSave as Product : p);
+        newMenu = menu?.map(p => p.id === editingProduct.id ? productToSave as Product : p);
       } else {
         newMenu = [...menu, productToSave as Product];
       }
@@ -302,29 +347,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     }
   };
 
-  const syncConfig = (newConfig: SiteConfig) => {
+  const syncConfig = async (newConfig: SiteConfig) => {
     onUpdateConfig(newConfig);
-  };
+    try {
+      // 1. Sync to site_settings (Standard config storage)
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({ 
+          id: 'active_config', 
+          config_data: newConfig
+        });
 
-  // Debounced Sync to Supabase
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    const timer = setTimeout(async () => {
-      try {
-        await supabase.from('site_settings').upsert({
-          id: 'active_config',
-          config_data: config,
+      if (error) {
+        console.error('Supabase Sync Error (site_settings):', error);
+        alert('Failed to sync changes to site_settings: ' + error.message);
+      } else {
+        console.log('Successfully synced to site_settings');
+      }
+
+      // 2. Sync to logistics_config (Specific table shown in Supabase dashboard)
+      const { error: logisticsError } = await supabase
+        .from('logistics_config')
+        .upsert({
+          id: 1,
+          areas: newConfig.areas,
+          status: newConfig.branchStatus,
           updated_at: new Date().toISOString()
         });
-        console.log('Config synced to cloud');
-      } catch (err) {
-        console.error('Failed to sync config:', err);
+      
+      if (logisticsError) {
+        console.error('Supabase Sync Error (logistics_config):', logisticsError);
+        // We'll keep this as a console error for now to avoid double alerts, 
+        // but it ensures the data is reflected if the table exists.
+      } else {
+        console.log('Successfully synced to logistics_config');
       }
-    }, 2000);
 
-    return () => clearTimeout(timer);
-  }, [config, isOpen]);
+    } catch (err: any) {
+      console.error('Config sync failed:', err);
+      alert('Network error while saving to cloud.');
+    }
+  };
 
   const handleSaveBanner = (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,7 +421,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   };
 
   const moveCategory = (index: number, direction: 'up' | 'down') => {
-    const newLayout = [...config.layout];
+    const newLayout = [...(config?.layout || [])];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newLayout.length) return;
     
@@ -367,7 +430,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
   };
 
   const moveArea = (index: number, direction: 'up' | 'down') => {
-    const newAreas = [...config.areas];
+    const newAreas = [...(config?.areas || [])];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newAreas.length) return;
 
@@ -429,6 +492,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
             <button onClick={() => setActiveTab('builder')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'builder' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Settings2 size={16} /> BUILDER</button>
             <button onClick={() => setActiveTab('menu')} className={`flex items-center gap-3 px-8 py-4 rounded-[1.5rem] text-[10px] font-black tracking-widest transition-all ${activeTab === 'menu' ? 'bg-white text-red-600 shadow-xl' : 'text-slate-500 hover:bg-white'}`}><Database size={16} /> MENU</button>
           </div>
+
+        {/* New Order Toast Notification */}
+        {newOrderToast && (
+          <div className="absolute top-32 right-10 z-[150] animate-reveal">
+            <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-red-600 flex items-center gap-6 max-w-sm">
+              <div className="bg-red-600 p-4 rounded-2xl animate-bounce">
+                <Bell size={24} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-black uppercase tracking-widest text-red-500 mb-1">New Order Received!</h4>
+                <p className="text-lg font-bold truncate">{newOrderToast.name}</p>
+                <p className="text-[10px] font-black opacity-50 uppercase mt-1">ID: {newOrderToast.id}</p>
+              </div>
+              <button onClick={() => setNewOrderToast(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+        )}
 
           <div className="flex items-center gap-4">
             <button onClick={onClose} className="flex items-center gap-3 px-6 py-4 bg-red-50 text-red-600 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm group">
@@ -496,9 +578,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                         // Create CSV content with UTF-8 BOM for Arabic support
                         const csvRows = [
                           headers.join(','),
-                          ...filtered.map(o => {
+                          ...filtered?.map(o => {
                             const statusLabel = o.status === 'pending' ? 'قيد التنفيذ' : o.status === 'completed' ? 'تم التوصيل' : 'ملغي';
-                            const itemsList = o.items.map(i => `${i.name} (x${i.quantity})`).join(' | ');
+                            const itemsList = o.items?.map(i => `${i.name} (x${i.quantity})`).join(' | ') || '';
                             
                             // Escape commas and quotes for CSV
                             return [
@@ -521,10 +603,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                         };
 
                         const fileName = filterType === 'day' 
-                          ? `HassanMohamed_Report_${selectedDate}_${getDayName(selectedDate)}` 
+                          ? `Chicky_Report_${selectedDate}_${getDayName(selectedDate)}` 
                           : filterType === 'month' 
-                          ? `HassanMohamed_Report_${selectedMonth}` 
-                          : `HassanMohamed_Report_${selectedYear}`;
+                          ? `Chicky_Report_${selectedMonth}` 
+                          : `Chicky_Report_${selectedYear}`;
 
                         const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
                         const link = document.createElement("a");
@@ -567,7 +649,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                      <MapIcon size={20} className="text-red-600" /> Orders per Area Breakdown
                    </h4>
                    <div className="space-y-4">
-                      {Object.entries(stats.areaStats).map(([area, data]) => (
+                      {Object.entries(stats.areaStats || {})?.map(([area, data]) => (
                         <div key={area} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all">
                            <span className="font-black text-slate-900 text-sm uppercase">{area}</span>
                            <div className="flex items-center gap-8">
@@ -590,12 +672,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
-                  {orders.length === 0 ? (
+                  {orders?.length === 0 ? (
                     <div className="bg-white p-20 rounded-[3.5rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 italic">
                       No orders recorded yet.
                     </div>
                   ) : (
-                    orders.map(order => (
+                    orders?.map(order => (
                       <div key={order.id} className="bg-white p-10 rounded-[4rem] border-2 border-slate-50 shadow-sm hover:border-red-600 transition-all flex flex-col gap-8">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
                           <div className="flex items-center gap-6">
@@ -658,7 +740,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                               <Layout size={14} className="text-red-600" /> Order Summary
                             </h5>
                             <div className="bg-slate-50 rounded-3xl p-6 space-y-4">
-                              {order.items.map((item, idx) => (
+                              {order.items?.map((item, idx) => (
                                 <div key={idx} className="flex justify-between items-center text-sm">
                                   <div className="flex items-center gap-3">
                                     <span className="w-7 h-7 bg-white rounded-lg flex items-center justify-center font-black text-[10px] border border-slate-100">{item.quantity}x</span>
@@ -680,7 +762,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           <button onClick={async () => {
                             const { error } = await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
                             if (!error) {
-                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'completed' as const } : o));
+                              setOrders(prev => prev?.map(o => o.id === order.id ? { ...o, status: 'completed' as const } : o));
                             }
                           }} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all active:scale-95 shadow-lg">Mark as Completed</button>
 
@@ -711,8 +793,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {menu.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.nameAr.includes(searchTerm)).map(product => {
-                    const cat = config.layout.find(c => c.id === product.category);
+                  {menu?.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.nameAr.includes(searchTerm)).map(product => {
+                    const cat = config?.layout?.find(c => c.id === product.category);
                     const hasDiscount = product.originalPrice && product.originalPrice > product.price;
                     return (
                       <div key={product.id} className="bg-white p-8 rounded-[3.5rem] border-2 border-slate-50 flex flex-col sm:flex-row items-center gap-10 group hover:border-red-600 transition-all shadow-sm relative overflow-hidden">
@@ -776,7 +858,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select sections to apply discount</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {config.layout.map(cat => {
+                      {config?.layout?.map(cat => {
                         const isSelected = newPromo.applicable_categories?.includes(cat.id);
                         return (
                           <button
@@ -802,7 +884,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optional - Select individual products</p>
                     </div>
                     <div className="max-h-64 overflow-y-auto no-scrollbar grid grid-cols-1 gap-2 p-4 bg-slate-50 rounded-3xl border border-slate-100">
-                      {menu.map(p => {
+                      {menu?.map(p => {
                         const isSelected = newPromo.applicable_products?.includes(p.id);
                         return (
                           <button
@@ -838,7 +920,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
 
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-10">
-                  {promoCodes.map(pc => (
+                  {promoCodes?.map(pc => (
                     <div key={pc.code} className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-100 flex flex-col justify-between">
                       <div className="flex justify-between items-start mb-10">
                         <div className="p-4 bg-slate-50 rounded-2xl"><TagIcon size={24} className="text-red-600" /></div>
@@ -863,18 +945,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                         </div>
                         {pc.applicable_categories && pc.applicable_categories.length > 0 && (
                           <div className="mt-4 flex flex-wrap gap-2">
-                             {pc.applicable_categories.map((catId: string) => (
+                             {pc.applicable_categories?.map((catId: string) => (
                                <span key={catId} className="bg-red-50 text-red-600 text-[8px] font-black px-3 py-1 rounded-lg border border-red-100">
-                                 {config.layout.find(c => c.id === catId)?.nameEn || catId}
+                                 {config?.layout?.find(c => c.id === catId)?.nameEn || catId}
                                </span>
                              ))}
                           </div>
                         )}
                         {pc.applicable_products && pc.applicable_products.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                             {pc.applicable_products.map((prodId: string) => (
+                             {pc.applicable_products?.map((prodId: string) => (
                                <span key={prodId} className="bg-slate-950 text-white text-[8px] font-black px-3 py-1 rounded-lg">
-                                 {menu.find(p => p.id === prodId)?.name || prodId}
+                                 {menu?.find(p => p.id === prodId)?.name || prodId}
                                </span>
                              ))}
                           </div>
@@ -913,49 +995,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                     <div className="space-y-8 animate-reveal">
                       <div className={cardStyle}>
                         <h3 className="text-3xl font-black brand-font uppercase flex items-center gap-4 text-red-600 border-b pb-6"><Palette size={28} /> Brand Identity</h3>
-                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-4">
-                            <label className={labelStyle}>Brand Name (EN)</label>
-                            <input className={inputStyle} value={config.brandNameEn || ''} onChange={e => syncConfig({ ...config, brandNameEn: e.target.value })} placeholder="e.g. MY BRAND" />
-                          </div>
-                          <div className="space-y-4">
-                            <label className={labelStyle}>اسم البراند (AR)</label>
-                            <input dir="rtl" className={inputStyle + " font-arabic"} value={config.brandNameAr || ''} onChange={e => syncConfig({ ...config, brandNameAr: e.target.value })} placeholder="مثلاً: براندي" />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                          <div className="space-y-4">
-                            <label className={labelStyle}>SEO Meta Title (EN)</label>
-                            <input className={inputStyle} value={config.metaTitleEn || ''} onChange={e => syncConfig({ ...config, metaTitleEn: e.target.value })} placeholder="Browser Tab Title" />
-                          </div>
-                          <div className="space-y-4">
-                            <label className={labelStyle}>عنوان التبويب (AR)</label>
-                            <input dir="rtl" className={inputStyle + " font-arabic"} value={config.metaTitleAr || ''} onChange={e => syncConfig({ ...config, metaTitleAr: e.target.value })} placeholder="عنوان المتصفح" />
-                          </div>
-                        </div>
-
-                        <div className="pt-6 border-t">
-                          <label className={labelStyle}>Brand Theme Colors</label>
-                          <div className="flex items-center gap-6 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner">
-                            <div className="relative">
-                              <input 
-                                type="color" 
-                                className="w-20 h-20 rounded-2xl cursor-pointer border-4 border-white shadow-xl" 
-                                value={config.theme.primaryColor} 
-                                onChange={e => syncConfig({ ...config, theme: { ...config.theme, primaryColor: e.target.value } })} 
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <span className="text-xs font-black text-slate-900 uppercase tracking-widest block mb-1">Primary Brand Color</span>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">This color will be applied to all buttons, highlights, and icons across the system.</p>
-                              <code className="mt-2 inline-block bg-white px-3 py-1 rounded-lg text-xs font-black text-slate-900 border border-slate-100 uppercase">{config.theme.primaryColor}</code>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-6 border-t">
                           <div className="space-y-4">
                             <label className={labelStyle}>Standard Red Logo</label>
                             <div onClick={() => logoRedFileInputRef.current?.click()} className="relative w-full h-64 border-4 border-dashed rounded-[3.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-all bg-slate-50 overflow-hidden shadow-inner group">
@@ -982,7 +1022,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           className="bg-red-600 text-white px-10 rounded-[2rem] py-5 font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-red-200">New Offer</button>
                       </div>
                       <div className="grid grid-cols-1 gap-6">
-                        {config.hero.banners.map(b => (
+                        {config?.hero?.banners?.map(b => (
                           <div key={b.id} className="bg-white p-10 rounded-[3.5rem] border-2 border-slate-50 flex flex-col md:flex-row items-center justify-between shadow-sm group hover:border-red-600 transition-all">
                             <div className="flex flex-col md:flex-row items-center gap-10">
                               <div className="relative shrink-0">
@@ -991,7 +1031,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                               <div className="text-center md:text-left">
                                 <h5 className="font-black text-xl text-slate-900 uppercase leading-none mb-2">Campaign Slide</h5>
                                 <p className="text-xs font-bold text-red-600 flex items-center gap-2 justify-center md:justify-start">
-                                  Linked to: {config.layout.find(c => c.id === b.targetCategoryId)?.nameEn || 'No Link'}
+                                  Linked to: {config?.layout?.find(c => c.id === b.targetCategoryId)?.nameEn || 'No Link'}
                                 </p>
                               </div>
                             </div>
@@ -1016,7 +1056,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           </div>
                         </div>
                         <div className="space-y-4 pt-6">
-                          {config.layout.map((cat, idx) => (
+                          {config?.layout?.map((cat, idx) => (
                             <div key={cat.id} className="flex items-center justify-between p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 group hover:bg-white transition-all shadow-sm">
                               <div className="flex items-center gap-6">
                                 <span className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center font-black text-xs text-red-600 border-2 border-slate-100 shadow-sm">{idx + 1}</span>
@@ -1090,7 +1130,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                                 {config.branchStatus === 'open' ? 'لا يوجد وسوم مضافة حالياً. استخدم الحقول أعلاه لإضافة وسم جديد.' : 'No tags added yet. Use the fields above to create labels.'}
                               </div>
                             )}
-                            {config.tags.map((tag) => (
+                            {(config?.tags || []).map((tag) => (
                               <div key={tag.id} className="flex items-center justify-between p-6 bg-white rounded-[2rem] border-2 border-slate-50 hover:border-red-100 transition-all group">
                                 <div className="flex items-center gap-4">
                                   <div className="p-3 bg-slate-50 rounded-xl text-slate-400 group-hover:text-red-600 transition-colors">
@@ -1119,26 +1159,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           <div className="relative"><Facebook className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.facebook} placeholder="Facebook Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, facebook: e.target.value } })} /></div>
                           <div className="relative"><Instagram className="absolute left-5 top-1/2 -translate-y-1/2 text-pink-600" size={24} /><input className={inputStyle + " pl-16"} value={config.footer.instagram} placeholder="Instagram Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, instagram: e.target.value } })} /></div>
                           <div className="relative"><TikTokIcon size={24} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-900" /><input className={inputStyle + " pl-16"} value={config.footer.tiktok} placeholder="TikTok Link" onChange={e => syncConfig({ ...config, footer: { ...config.footer, tiktok: e.target.value } })} /></div>
-                          
-                          <div className="relative">
-                            <Phone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                            <input 
-                              className={inputStyle + " pl-16"} 
-                              value={config.header.phone} 
-                              placeholder="Hotline Number" 
-                              onChange={e => syncConfig({ ...config, header: { ...config.header, phone: e.target.value } })} 
-                            />
-                          </div>
-                          <div className="relative">
-                            <MessageSquare className="absolute left-5 top-1/2 -translate-y-1/2 text-green-500" size={24} />
-                            <input 
-                              className={inputStyle + " pl-16"} 
-                              value={config.header.whatsapp || ''} 
-                              placeholder="WhatsApp Number" 
-                              onChange={e => syncConfig({ ...config, header: { ...config.header, whatsapp: e.target.value } })} 
-                            />
-                          </div>
-                          
                           <div className="relative md:col-span-3">
                             <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-red-600" size={24} />
                             <input 
@@ -1201,7 +1221,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                           <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Active Corridors ({config.areas.length})</span>
                           <BarChart3 size={16} className="text-slate-300" />
                         </div>
-                        {config.areas.map(area => (
+                        {config?.areas?.map(area => (
                           <div key={area.id}
                             onClick={() => focusOnArea(area)}
                             className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer group flex items-center justify-between ${selectedAreaId === area.id ? 'bg-red-50 border-red-600 shadow-lg' : 'bg-slate-50 border-slate-100 hover:bg-white hover:border-slate-300'}`}>
@@ -1341,7 +1361,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                     <div><label className={labelStyle}>Selling Price (LE)</label><input type="number" className={inputStyle + " text-3xl font-black text-red-600"} value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} required /></div>
                     <div><label className={labelStyle}>Instead of (Old Price)</label><input type="number" className={inputStyle + " text-xl text-slate-300 font-bold"} value={editingProduct.originalPrice || ''} placeholder="LE" onChange={e => setEditingProduct({ ...editingProduct, originalPrice: Number(e.target.value) })} /></div>
                   </div>
-                  <div><label className={labelStyle}>Category</label><select className={inputStyle} value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}>{config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn}</option>)}</select></div>
+                  <div><label className={labelStyle}>Category</label><select className={inputStyle} value={editingProduct.category} onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}>{config?.layout?.map(c => <option key={c.id} value={c.id}>{c.nameEn}</option>)}</select></div>
                 </div>
               </div>
 
@@ -1352,7 +1372,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                   <h4 className="text-lg font-black brand-font uppercase tracking-tight text-slate-900">Product Labels & Badges</h4>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {config.tags.map(tag => {
+                  {config?.tags?.map(tag => {
                     const isActive = editingProduct.tags?.includes(tag.nameEn);
                     return (
                       <button
@@ -1519,7 +1539,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                       onChange={e => setEditingBanner({ ...editingBanner, targetCategoryId: e.target.value })}
                     >
                       <option value="">No Link (Visual Only)</option>
-                      {config.layout.map(c => <option key={c.id} value={c.id}>{c.nameEn} / {c.nameAr}</option>)}
+                      {config?.layout?.map(c => <option key={c.id} value={c.id}>{c.nameEn} / {c.nameAr}</option>)}
                     </select>
                     <p className="mt-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest">When a customer clicks this banner, they will be scrolled to this category.</p>
                   </div>
@@ -1566,7 +1586,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
             <div className="flex items-center gap-4">
                <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black">CH</div>
                <div>
-                  <h1 className="text-3xl font-black tracking-tighter uppercase leading-none mb-1">{config.brandNameEn} Analytics</h1>
+                  <h1 className="text-3xl font-black tracking-tighter uppercase leading-none mb-1">CHICKY Analytics</h1>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Official Restaurant Performance Report</p>
                </div>
             </div>
@@ -1617,7 +1637,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                          </tr>
                       </thead>
                       <tbody>
-                         {Object.entries(stats.areaStats).map(([area, data]) => (
+                         {Object.entries(stats.areaStats || {})?.map(([area, data]) => (
                             <tr key={area} className="border-b border-slate-100">
                                <td className="py-3 text-xs font-bold uppercase">{area}</td>
                                <td className="py-3 text-xs font-medium text-center">{data.count}</td>
@@ -1638,7 +1658,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
                          </tr>
                       </thead>
                       <tbody>
-                         {Object.entries(stats.topItem ? { [stats.topItem[0]]: stats.topItem[1] } : {}).map(([name, qty]) => (
+                         {Object.entries(stats.topItem ? { [stats.topItem[0]]: stats.topItem[1] } : {})?.map(([name, qty]) => (
                             <tr key={name} className="border-b border-slate-50">
                                <td className="py-3 text-xs font-bold uppercase">{name}</td>
                                <td className="py-3 text-xs font-black text-right">{qty} Units</td>
@@ -1652,7 +1672,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
 
           {/* Footer Signature */}
           <div className="mt-12 pt-6 border-t border-slate-100 flex justify-between items-center italic">
-             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{config.brandNameEn} Restaurant Management System • Confidential Report</p>
+             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Chicky Restaurant Management System • Confidential Report</p>
              <p className="text-[9px] font-bold text-slate-400">Page 1 of 1</p>
           </div>
         </div>

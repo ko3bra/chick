@@ -7,13 +7,13 @@ interface LogoProps {
 }
 
 const Logo: React.FC<LogoProps> = ({ className = "h-10", src }) => {
-  const fallback = import.meta.env.VITE_DEFAULT_LOGO || "/logo-red.png";
+  const fallback = "https://raw.githubusercontent.com/ai-studio-assets/chicky-logo/main/logo-red.png";
   
   return (
     <div className={`flex items-center ${className}`}>
       <img 
         src={src || fallback} 
-        alt="Brand Logo"
+        alt="Chicky Logo"
         fetchPriority="high"
         decoding="async"
         className="h-full w-auto object-contain transition-transform hover:scale-105"
