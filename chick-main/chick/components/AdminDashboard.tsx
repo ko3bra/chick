@@ -163,7 +163,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
 
     filteredOrders.forEach(order => {
       // Area Stats
-      const area = order.area || 'Unknown';
+      let area = order.area;
+      if (!area || area === 'Unknown' || area === 'N/A') {
+        area = order.serviceType === 'pickup' ? 'Pickup' : order.serviceType === 'dine-in' ? 'Dine-in' : 'General';
+      }
       if (!areaStats[area]) areaStats[area] = { count: 0, revenue: 0 };
       areaStats[area].count += 1;
       areaStats[area].revenue += order.totalPrice;

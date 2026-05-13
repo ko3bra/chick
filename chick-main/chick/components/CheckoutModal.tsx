@@ -331,11 +331,25 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
-    // Generate a more organized ID: #YYMMDD-XXXX
+    // Generate a sequential ID: #YYMMDD-XXXX (Sequential)
     const now = new Date();
     const dateStr = now.toISOString().slice(2, 10).replace(/-/g, '');
-    const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
-    const newOrderId = `#${dateStr}-${randomStr}`;
+    
+    let orderNumber = '0001';
+    try {
+      const { data: todayOrders } = await supabase
+        .from('orders')
+        .select('id')
+        .gte('created_at', new Date().toISOString().split('T')[0]);
+      
+      const count = (todayOrders?.length || 0) + 1;
+      orderNumber = count.toString().padStart(4, '0');
+    } catch (e) {
+      // Fallback to random if fetch fails
+      orderNumber = Math.random().toString(36).substr(2, 4).toUpperCase();
+    }
+    
+    const newOrderId = `#${dateStr}-${orderNumber}`;
     setOrderId(newOrderId);
  
     // 1. Cloud Save enabled
@@ -356,7 +370,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customer_name: details.name,
         phone: details.phone,
         address: details.address,
-        area: isAr ? selectedArea?.nameAr : selectedArea?.nameEn,
+        area: selectedArea 
+          ? (isAr ? selectedArea.nameAr : selectedArea.nameEn)
+          : (details.serviceType === 'pickup' 
+              ? (isAr ? 'استلام من الفرع' : 'Branch Pickup') 
+              : (details.serviceType === 'dine-in' ? (isAr ? 'تناول في الفرع' : 'Dine-in') : 'N/A')),
         location: { 
           ...location, 
           deliveryFee: currentFee, 
