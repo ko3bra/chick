@@ -363,10 +363,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         payment_method: paymentMethod
       }]);
 
-      if (saveError) throw saveError;
-    } catch (err) {
+      if (saveError) {
+        console.error('Supabase Error:', saveError);
+        alert('Database Error: ' + saveError.message);
+        throw saveError;
+      }
+    } catch (err: any) {
       console.error('Failed to save order to database:', err);
-      // We still proceed with WhatsApp even if DB save fails, but alert the console
+      // alert('System Error: ' + err.message);
     }
 
     onConfirm({

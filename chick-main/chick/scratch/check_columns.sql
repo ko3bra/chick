@@ -1,5 +1,5 @@
-
--- Check columns of menu_items
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'menu_items';
+-- Check columns of the orders table
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'orders'
+  AND table_schema = 'public';
