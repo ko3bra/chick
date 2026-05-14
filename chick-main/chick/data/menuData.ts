@@ -160,7 +160,7 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
   areas: [],
   theme: { primaryColor: '#E4002B' },
   branchStatus: 'open',
-  branches: ['Alexandria - Palm Beach', 'Alexandria - North Coast', 'Cairo - Maadi']
+  branches: ['Mansoura - Gihan', 'Mansoura - Teraa', 'Mansoura - University Plaza']
 };
 
 export const getStoredMenu = (): Product[] => {

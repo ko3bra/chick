@@ -227,7 +227,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, menu, 
     if (activeTab === 'areas' && isOpen) {
       const timer = setTimeout(() => {
         if (!adminMapRef.current) {
-          adminMapRef.current = L.map('admin-logistics-map').setView([30.0444, 31.2357], 11);
+          adminMapRef.current = L.map('admin-logistics-map').setView([31.0409, 31.3785], 13);
           L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(adminMapRef.current);
 
           drawingLayerRef.current = L.layerGroup().addTo(adminMapRef.current);

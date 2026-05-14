@@ -54,7 +54,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet' | null>(null);
 
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-  const [location, setLocation] = useState<{ lat: number, lng: number }>({ lat: 30.0444, lng: 31.2357 });
+  const [location, setLocation] = useState<{ lat: number, lng: number }>({ lat: 31.0409, lng: 31.3785 });
   const [isCalculating, setIsCalculating] = useState(false);
   const [isOutOfRange, setIsOutOfRange] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -181,7 +181,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSearchingMap(true);
     try {
       const langParam = lang === 'ar' ? 'ar' : 'en';
-      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Alexandria, Egypt')}&limit=1&accept-language=${langParam}&viewbox=29.7,30.8,30.2,31.4`);
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=1&accept-language=${langParam}`);
       const data = await resp.json();
       if (data && data.length > 0) {
         selectSearchResult(data[0]);
@@ -198,7 +198,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (mapSearch.length >= 2) {
         try {
           const langParam = lang === 'ar' ? 'ar' : 'en';
-          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Alexandria, Egypt')}&limit=5&accept-language=${langParam}&viewbox=29.7,30.8,30.2,31.4`);
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=5&accept-language=${langParam}`);
           const data = await resp.json();
           setMapSearchResults(data);
           setShowMapResults(true);
@@ -333,9 +333,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       // Check applicable categories/products if any
       let isApplicable = true;
-      if ((data.applicable_categories && data.applicable_categories.length > 0) || 
-          (data.applicable_products && data.applicable_products.length > 0)) {
-        
+      if ((data.applicable_categories && data.applicable_categories.length > 0) ||
+        (data.applicable_products && data.applicable_products.length > 0)) {
+
         isApplicable = cartItems.some(item => {
           const catMatch = data.applicable_categories?.includes(item.category);
           const prodMatch = data.applicable_products?.includes(item.id);
@@ -378,24 +378,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // Generate a sequential ID: #YYMMDD-XXXX (Sequential)
     const now = new Date();
     const dateStr = now.toISOString().slice(2, 10).replace(/-/g, '');
-    
+
     let orderNumber = '0001';
     try {
       const { data: todayOrders } = await supabase
         .from('orders')
         .select('id')
         .gte('created_at', new Date().toISOString().split('T')[0]);
-      
+
       const count = (todayOrders?.length || 0) + 1;
       orderNumber = count.toString().padStart(4, '0');
     } catch (e) {
       // Fallback to random if fetch fails
       orderNumber = Math.random().toString(36).substr(2, 4).toUpperCase();
     }
-    
+
     const newOrderId = `#${dateStr}-${orderNumber}`;
     setOrderId(newOrderId);
- 
+
     // 1. Cloud Save enabled
     try {
       const orderItems = cartItems.map(item => ({
@@ -408,20 +408,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         selectedSpiciness: item.selectedSpiciness,
         selectedExtras: item.selectedExtras
       }));
- 
+
       const { error: saveError } = await supabase.from('orders').insert([{
         id: newOrderId,
         customer_name: details.name,
         phone: details.phone,
         address: details.address,
-        area: selectedArea 
+        area: selectedArea
           ? (isAr ? selectedArea.nameAr : selectedArea.nameEn)
-          : (details.serviceType === 'pickup' 
-              ? (isAr ? 'استلام من الفرع' : 'Branch Pickup') 
-              : (details.serviceType === 'dine-in' ? (isAr ? 'تناول في الفرع' : 'Dine-in') : 'N/A')),
-        location: { 
-          ...location, 
-          deliveryFee: currentFee, 
+          : (details.serviceType === 'pickup'
+            ? (isAr ? 'استلام من الفرع' : 'Branch Pickup')
+            : (details.serviceType === 'dine-in' ? (isAr ? 'تناول في الفرع' : 'Dine-in') : 'N/A')),
+        location: {
+          ...location,
+          deliveryFee: currentFee,
           address: details.address,
           service_type: details.serviceType
         },
