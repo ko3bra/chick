@@ -181,7 +181,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSearchingMap(true);
     try {
       const langParam = lang === 'ar' ? 'ar' : 'en';
-      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=1&accept-language=${langParam}`);
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=1&accept-language=${langParam}&viewbox=31.2,30.9,31.5,31.2`);
       const data = await resp.json();
       if (data && data.length > 0) {
         selectSearchResult(data[0]);
@@ -198,7 +198,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (mapSearch.length >= 2) {
         try {
           const langParam = lang === 'ar' ? 'ar' : 'en';
-          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=5&accept-language=${langParam}`);
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=5&accept-language=${langParam}&viewbox=31.2,30.9,31.5,31.2`);
           const data = await resp.json();
           setMapSearchResults(data);
           setShowMapResults(true);
