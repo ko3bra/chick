@@ -30,7 +30,8 @@
   --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.bg-white, .bg-slate-50 {
+.bg-white,
+.bg-slate-50 {
   background-color: #ffffff !important;
 }
 
@@ -57,38 +58,20 @@ body {
   position: relative;
 }
 
-section, main, .max-w-7xl, #root > div, div[className*="bg-slate-50"] {
+section,
+main,
+.max-w-7xl,
+#root>div,
+div[className*="bg-slate-50"] {
   background-color: transparent !important;
 }
 
-.bg-white, .bg-slate-50, .group.bg-white {
+.bg-white,
+.bg-slate-50,
+.group.bg-white {
   background-color: #ffffff !important;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(45deg, rgba(var(--brand-red-rgb), 0.04) 25%, transparent 25%), 
-    linear-gradient(-45deg, rgba(var(--brand-red-rgb), 0.04) 25%, transparent 25%), 
-    linear-gradient(45deg, transparent 75%, rgba(var(--brand-red-rgb), 0.04) 75%), 
-    linear-gradient(-45deg, transparent 75%, rgba(var(--brand-red-rgb), 0.04) 75%);
-  background-size: 100px 100px;
-  background-position: 0 0, 0 50px, 50px 50px, 50px 0;
-  pointer-events: none;
-  z-index: -1;
-}
-
-@media (min-width: 768px) {
-  body::before {
-    background-size: 160px 160px;
-    background-position: 0 0, 0 80px, 80px 80px, 80px 0;
-  }
-}
 
 [dir="rtl"] body {
   font-family: 'Cairo', sans-serif;
@@ -280,14 +263,18 @@ body::before {
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-header, footer, .sticky, nav {
+header,
+footer,
+.sticky,
+nav {
   background-color: white !important;
   z-index: 50 !important;
   position: relative;
 }
 
 footer {
-  background-color: #020617 !important; /* Keep footer dark but opaque */
+  background-color: #020617 !important;
+  /* Keep footer dark but opaque */
 }
 
 .hover-lift {

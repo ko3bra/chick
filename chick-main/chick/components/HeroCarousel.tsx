@@ -70,14 +70,14 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
 
   return (
     <section 
-      className="relative w-full max-w-7xl mx-auto px-3 md:px-8 mt-4 md:mt-8 group"
+      className="relative w-full group"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="relative w-full aspect-[16/8] sm:aspect-[16/7] md:aspect-[16/6] lg:aspect-[21/7] overflow-hidden bg-white rounded-[2rem] md:rounded-[3.5rem] shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border-2 border-white/20">
+      <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] overflow-hidden bg-white shadow-lg">
         {/* Slider Container */}
         <div 
           className="flex h-full transition-transform duration-[1200ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
