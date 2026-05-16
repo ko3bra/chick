@@ -77,7 +77,7 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] overflow-hidden bg-white shadow-lg">
+      <div className="relative w-full aspect-[4/3] md:aspect-[4/1] overflow-hidden bg-white shadow-lg">
         {/* Slider Container */}
         <div 
           className="flex h-full transition-transform duration-[1200ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
@@ -89,14 +89,14 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ banners, isAr, onCategoryCl
           {banners.map((banner, idx) => (
             <div 
               key={banner.id} 
-              className={`h-full relative flex-shrink-0 overflow-hidden ${banner.targetCategoryId ? 'cursor-pointer' : ''}`}
+              className={`h-full relative flex-shrink-0 overflow-hidden bg-[var(--brand-red)] ${banner.targetCategoryId ? 'cursor-pointer' : ''}`}
               style={{ width: `${100 / banners.length}%` }}
               onClick={() => banner.targetCategoryId && onCategoryClick(banner.targetCategoryId)}
             >
               <img 
                 src={banner.image} 
                 alt={isAr ? banner.titleAr : banner.titleEn}
-                className="w-full h-full object-cover object-center select-none"
+                className="w-full h-full object-contain object-center select-none"
                 loading={idx === 0 ? "eager" : "lazy"}
                 fetchPriority={idx === 0 ? "high" : "auto"}
               />
