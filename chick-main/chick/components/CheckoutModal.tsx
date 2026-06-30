@@ -35,9 +35,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const areas = config.areas || [];
+  const isAr = lang === 'ar';
+
   const [step, setStep] = useState(1); // Step 1: Service Choice, Step 2: Details/Location, Step 3: Summary
   const [orderId, setOrderId] = useState('');
-  const [locationMethod, setLocationMethod] = useState<'map' | 'list'>('map');
   const [details, setDetails] = useState<OrderDetails>({
     name: '',
     phone: '',
@@ -55,15 +57,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [location, setLocation] = useState<{ lat: number, lng: number }>({ lat: 31.0409, lng: 31.3785 });
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [isOutOfRange, setIsOutOfRange] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [mapSearch, setMapSearch] = useState('');
-  const [isSearchingMap, setIsSearchingMap] = useState(false);
-  const [mapSearchResults, setMapSearchResults] = useState<any[]>([]);
-  const [showMapResults, setShowMapResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [areaSearchQuery, setAreaSearchQuery] = useState('');
+
+  const filteredAreas = useMemo(() => {
+    if (!areaSearchQuery.trim()) return areas;
+    const query = areaSearchQuery.toLowerCase().trim();
+    return areas.filter(area =>
+      area.nameAr.toLowerCase().includes(query) ||
+      area.nameEn.toLowerCase().includes(query)
+    );
+  }, [areas, areaSearchQuery]);
 
   useEffect(() => {
     if (isScheduling) {
@@ -81,12 +86,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [isScheduling]);
 
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
-  const areas = config.areas || [];
-
-  const isAr = lang === 'ar';
 
   const t = {
     title: isAr ? 'إتمام الطلب' : 'chick CHECKOUT',
@@ -141,129 +141,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const validatePosition = (lat: number, lng: number) => {
-    setIsCalculating(true);
-    let matched: Area | null = null;
-
-    for (const area of areas) {
-      if (area.points && isPointInPolygon([lat, lng], area.points)) {
-        matched = area;
-        break;
-      }
-    }
-
-    setSelectedArea(matched);
-    setIsOutOfRange(!matched);
-    setIsCalculating(false);
-  };
-
-  const detectLocation = () => {
-    if (!navigator.geolocation) return;
-    setIsDetecting(true);
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const { latitude, longitude } = pos.coords;
-      const newLoc = { lat: latitude, lng: longitude };
-      setLocation(newLoc);
-
-      if (markerRef.current) markerRef.current.setLatLng([latitude, longitude]);
-      if (mapRef.current) mapRef.current.setView([latitude, longitude], 16);
-
-      validatePosition(latitude, longitude);
-      setIsDetecting(false);
-    }, (err) => {
-      console.error(err);
-      setIsDetecting(false);
-    });
-  };
-
-  const searchLocation = async () => {
-    if (!mapSearch) return;
-    setIsSearchingMap(true);
-    try {
-      const langParam = lang === 'ar' ? 'ar' : 'en';
-      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=1&accept-language=${langParam}&viewbox=31.2,30.9,31.5,31.2`);
-      const data = await resp.json();
-      if (data && data.length > 0) {
-        selectSearchResult(data[0]);
-      }
-    } catch (e) {
-      console.error('Search failed:', e);
-    }
-    setIsSearchingMap(false);
-  };
-
-  // Debounced search for suggestions
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (mapSearch.length >= 2) {
-        try {
-          const langParam = lang === 'ar' ? 'ar' : 'en';
-          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearch + ', Egypt')}&limit=5&accept-language=${langParam}&viewbox=31.2,30.9,31.5,31.2`);
-          const data = await resp.json();
-          setMapSearchResults(data);
-          setShowMapResults(true);
-        } catch (e) {
-          console.error('Autocomplete failed:', e);
-        }
-      } else {
-        setMapSearchResults([]);
-        setShowMapResults(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [mapSearch]);
-
-  const selectSearchResult = (result: any) => {
-    const lat = parseFloat(result.lat);
-    const lon = parseFloat(result.lon);
-    setLocation({ lat, lng: lon });
-    if (mapRef.current) mapRef.current.setView([lat, lon], 16);
-    validatePosition(lat, lon);
-    setShowMapResults(false);
-    setMapSearch(result.display_name.split(',')[0]);
-  };
-
-  useEffect(() => {
-    if (step === 2 && details.serviceType === 'delivery' && locationMethod === 'map' && isOpen) {
-      const timer = setTimeout(() => {
-        if (!mapRef.current) {
-          mapRef.current = L.map('map-container', { zoomControl: false, center: [location.lat, location.lng], zoom: 13 });
-          L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}').addTo(mapRef.current);
-
-          mapRef.current.on('moveend', () => {
-            const center = mapRef.current.getCenter();
-            const newLoc = { lat: center.lat, lng: center.lng };
-            setLocation(newLoc);
-            validatePosition(newLoc.lat, newLoc.lng);
-          });
-
-          areas.forEach(area => {
-            if (area.points) {
-              L.polygon(area.points, { color: '#E4002B', weight: 0, fillOpacity: 0 }).addTo(mapRef.current);
-            }
-          });
-
-          validatePosition(location.lat, location.lng);
-        } else {
-          mapRef.current.invalidateSize();
-        }
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [step, locationMethod, isOpen, details.serviceType]);
-
   const handleAreaSelect = (area: Area) => {
     try {
       setSelectedArea(area);
-      setIsOutOfRange(false);
       if (area.points && area.points.length > 0) {
         const center = area.points[0];
         setLocation({ lat: center[0], lng: center[1] });
-        // Only update map if we are in map mode and container exists
-        if (locationMethod === 'map' && mapRef.current && document.getElementById('map-container')) {
-          mapRef.current.setView(center, 14);
-        }
       }
     } catch (e) {
       console.error('Area selection error:', e);
@@ -609,106 +492,42 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <div className="flex items-center justify-between">
                   <h3 className={`text-xl font-black ${isAr ? 'font-arabic border-r-4' : 'brand-font border-l-4'} border-red-600 ${isAr ? 'pr-4' : 'pl-4'}`}>{t.location}</h3>
-                  <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setLocationMethod('map')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${locationMethod === 'map' ? 'bg-white shadow-md' : 'text-slate-400'}`}>
-                      {t.mapPin}
-                    </button>
-                    <button onClick={() => setLocationMethod('list')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${locationMethod === 'list' ? 'bg-white shadow-md' : 'text-slate-400'}`}>
-                      {t.areaList}
-                    </button>
-                  </div>
                 </div>
 
-                {locationMethod === 'list' ? (
-                  <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto no-scrollbar p-1">
-                    {areas.map(area => (
-                      <button key={area.id} onClick={() => handleAreaSelect(area)} className={`p-4 rounded-2xl border-2 transition-all text-center flex flex-col items-center gap-2 group cursor-pointer pointer-events-auto ${selectedArea?.id === area.id ? 'bg-red-600 border-red-600 text-white' : 'bg-slate-50 border-slate-100 hover:border-red-600'}`}>
-                        <span className="text-[10px] font-black uppercase tracking-widest">{isAr ? area.nameAr : area.nameEn}</span>
+                {/* Area Search Bar */}
+                <div className="relative group">
+                  <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-red-600 transition-colors`} size={20} />
+                  <input
+                    type="text"
+                    placeholder={isAr ? 'ابحث عن منطقتك...' : 'Search for your area...'}
+                    value={areaSearchQuery}
+                    onChange={(e) => setAreaSearchQuery(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* Area Selection Grid */}
+                <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto no-scrollbar p-1">
+                  {filteredAreas.length > 0 ? (
+                    filteredAreas.map(area => (
+                      <button 
+                        key={area.id} 
+                        type="button"
+                        onClick={() => handleAreaSelect(area)} 
+                        className={`p-4 rounded-2xl border-2 transition-all text-center flex flex-col items-center justify-center gap-2 group cursor-pointer pointer-events-auto ${selectedArea?.id === area.id ? 'bg-red-600 border-red-600 text-white' : 'bg-slate-50 border-slate-100 hover:border-red-600'}`}
+                      >
+                        <span className="text-sm font-black uppercase tracking-widest leading-tight">{isAr ? area.nameAr : area.nameEn}</span>
+                        <span className={`text-[10px] font-bold ${selectedArea?.id === area.id ? 'text-white/80' : 'text-slate-400'}`}>
+                          {area.fee > 0 ? `${area.fee} ${isAr ? 'ج.م توصيل' : 'LE delivery'}` : (isAr ? 'توصيل مجاني' : 'Free delivery')}
+                        </span>
                       </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Search Bar for Map */}
-                    <div className="relative group">
-                      <Search className={`absolute ${isAr ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-red-600 transition-colors`} size={20} />
-                      <input
-                        type="text"
-                        placeholder={t.mapSearchPlaceholder}
-                        value={mapSearch}
-                        onChange={(e) => setMapSearch(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && searchLocation()}
-                        onFocus={() => mapSearch.length > 2 && setShowMapResults(true)}
-                        onBlur={() => setTimeout(() => setShowMapResults(false), 200)}
-                        className={inputClass}
-                      />
-
-                      {/* Suggestions Dropdown */}
-                      {showMapResults && mapSearchResults.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 z-[100] mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-reveal">
-                          {mapSearchResults.map((res, i) => (
-                            <button
-                              key={i}
-                              onClick={() => selectSearchResult(res)}
-                              className="w-full px-6 py-4 text-left hover:bg-slate-50 transition-all border-b border-slate-50 last:border-none flex items-start gap-4 group"
-                            >
-                              <MapPin size={18} className="text-slate-400 group-hover:text-red-600 shrink-0 mt-1" />
-                              <div className={isAr ? 'text-right flex-1' : 'text-left flex-1'}>
-                                <p className="text-sm font-black text-slate-900 truncate">
-                                  {res.display_name.split(',')[0]}
-                                </p>
-                                <p className="text-[10px] font-bold text-slate-400 truncate uppercase tracking-widest mt-0.5">
-                                  {res.display_name.split(',').slice(1, 3).join(',')}
-                                </p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    ))
+                  ) : (
+                    <div className="col-span-2 text-center py-8 text-slate-400 font-bold text-sm">
+                      {isAr ? 'عذراً، لم نجد هذه المنطقة في التغطية.' : 'Sorry, no matching areas found.'}
                     </div>
-
-                    <div className="relative w-full h-[300px] rounded-[2.5rem] overflow-hidden border-4 border-slate-100 shadow-inner group">
-                      <div id="map-container" className="w-full h-full z-0" />
-
-                      {/* Fixed Center Pin Overlay */}
-                      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
-                        <div className="relative flex flex-col items-center">
-                          <div className="absolute bottom-full mb-4 px-4 py-2 bg-slate-800/90 text-white text-[10px] font-bold rounded-lg whitespace-nowrap shadow-xl backdrop-blur-sm animate-bounce">
-                            {isAr ? 'حرك الخريطة لتحديد الموقع' : 'Move map to set location'}
-                          </div>
-                          <div className="w-10 h-10 bg-red-600 rounded-full border-4 border-white shadow-2xl flex items-center justify-center transform -translate-y-1/2">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Detect Location Button - Top Right */}
-                      <div className="absolute top-6 right-6 z-10">
-                        <button onClick={detectLocation} className="bg-slate-50 p-4 rounded-2xl shadow-2xl text-red-600 hover:bg-white transition-all active:scale-90 flex items-center justify-center border-2 border-slate-200">
-                          {isDetecting ? <Loader2 className="animate-spin" size={24} /> : <LocateFixed size={24} />}
-                        </button>
-                      </div>
-
-                      {isCalculating && (
-                        <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 flex items-center justify-center">
-                          <Loader2 className="text-red-600 animate-spin" size={32} />
-                        </div>
-                      )}
-                      {isOutOfRange && (
-                        <div className="absolute inset-x-4 bottom-4 z-20 bg-red-600 text-white p-4 rounded-2xl shadow-2xl animate-reveal flex items-center gap-3">
-                          <AlertCircle size={20} />
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest">{t.outOfRange}</p>
-                            <p className="text-[9px] font-medium opacity-80">{t.outOfRangeSub}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">{t.pinMap}</p>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div>
                   <label className={labelClass}>{t.instructions}</label>
@@ -721,6 +540,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
             )}
+
 
             <button
               disabled={!details.name || details.phone.length < 11 || phoneError || (details.serviceType === 'delivery' && (!selectedArea || !details.address))}
