@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const FALLBACK_URL = 'https://szktygmanoyniopzlxwf.supabase.co';
