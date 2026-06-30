@@ -33,8 +33,6 @@ interface CheckoutModalProps {
 const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen, onClose, subtotal, onConfirm, cartItems, onClearCart, lang, serviceType: initialServiceType, config
 }) => {
-  if (!isOpen) return null;
-
   const areas = config.areas || [];
   const isAr = lang === 'ar';
 
@@ -70,6 +68,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     );
   }, [areas, areaSearchQuery]);
 
+  const timeInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (isScheduling) {
       // Small timeout to ensure the element is rendered and positioned in DOM
@@ -85,8 +85,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isScheduling]);
-
-  const timeInputRef = useRef<HTMLInputElement>(null);
 
   const t = {
     title: isAr ? 'إتمام الطلب' : 'chick CHECKOUT',
@@ -772,6 +770,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       default: return null;
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">

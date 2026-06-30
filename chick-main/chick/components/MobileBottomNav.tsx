@@ -39,18 +39,18 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={() => setIsCatsOpen(false)} />
           <div className="relative bg-white w-full rounded-[2.5rem] p-6 shadow-2xl animate-slide-up border-4 border-slate-900/5 overflow-hidden">
             <div className="flex items-center justify-between mb-6 px-2">
-               <div>
-                 <h3 className="text-xl font-black brand-font text-slate-900 uppercase leading-none">{isAr ? 'الأقسام' : 'CATEGORIES'}</h3>
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{isAr ? 'اختر القسم المفضل' : 'PICK YOUR FAVORITE'}</p>
-               </div>
-               <button onClick={() => setIsCatsOpen(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl">
-                 <X size={20} />
-               </button>
+              <div>
+                <h3 className="text-xl font-black brand-font text-slate-900 uppercase leading-none">{isAr ? 'الأقسام' : 'CATEGORIES'}</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{isAr ? 'اختر القسم المفضل' : 'PICK YOUR FAVORITE'}</p>
+              </div>
+              <button onClick={() => setIsCatsOpen(false)} className="p-3 bg-slate-100 text-slate-400 rounded-2xl">
+                <X size={20} />
+              </button>
             </div>
-            
+
             <div className="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto no-scrollbar pb-4">
               {categories.map(cat => (
-                <button 
+                <button
                   key={cat.id}
                   onClick={() => handleCatClick(cat.id)}
                   className="flex items-center justify-between p-4 bg-slate-50 hover:bg-red-50 rounded-2xl group transition-all"
@@ -68,7 +68,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2 pointer-events-none">
         <div className="glass bg-slate-950/90 border-white/10 rounded-[2rem] shadow-2xl flex items-center justify-around p-2 pointer-events-auto">
-          <button 
+          <button
             onClick={onHomeClick}
             className="flex flex-col items-center justify-center p-3 text-slate-400 hover:text-white transition-colors"
           >
@@ -76,7 +76,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[9px] font-black uppercase mt-1 tracking-widest">{isAr ? 'الرئيسية' : 'Home'}</span>
           </button>
 
-          <button 
+          <button
             onClick={onSearchClick}
             className="flex flex-col items-center justify-center p-3 text-slate-400 hover:text-white transition-colors"
           >
@@ -84,7 +84,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[9px] font-black uppercase mt-1 tracking-widest">{isAr ? 'بحث' : 'Search'}</span>
           </button>
 
-          <button 
+          <button
             onClick={onOpenCart}
             className="relative flex flex-col items-center justify-center p-3 bg-red-600 text-white rounded-[1.5rem] shadow-xl shadow-red-900/40 -translate-y-4 scale-125 transition-transform"
           >
@@ -96,7 +96,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             )}
           </button>
 
-          <button 
+          <button
             onClick={onMenuClick}
             className="flex flex-col items-center justify-center p-3 text-slate-400 hover:text-white transition-colors"
           >
@@ -104,7 +104,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <span className="text-[9px] font-black uppercase mt-1 tracking-widest">{isAr ? 'المنيو' : 'Menu'}</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setIsCatsOpen(!isCatsOpen)}
             className={`flex flex-col items-center justify-center p-3 transition-colors ${isCatsOpen ? 'text-red-500' : 'text-slate-400 hover:text-white'}`}
           >
